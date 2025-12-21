@@ -128,6 +128,11 @@ namespace Quaver.Shared.Screens.Gameplay.Rulesets.Keys.Playfield
         public List<JudgementHitBurst> JudgementHitBursts { get; private set; }
 
         /// <summary>
+        ///     HitTiming indicators showing early/late hits.
+        /// </summary>
+        public List<HitTimingIndicator> HitTimingIndicators { get; private set; }
+
+        /// <summary>
         ///     When hitting an object, this is the sprite that will be shown at
         ///     the hitposition.
         /// </summary>
@@ -216,6 +221,7 @@ namespace Quaver.Shared.Screens.Gameplay.Rulesets.Keys.Playfield
                 CreateHitBubbles();
                 CreateHitLighting();
                 CreateJudgementHitBurst();
+                CreateHitTimingIndicators();
 
                 if (OnlineManager.CurrentGame?.Ruleset == MultiplayerGameRuleset.Battle_Royale &&
                     ConfigManager.EnableBattleRoyaleAlerts.Value)
@@ -232,6 +238,7 @@ namespace Quaver.Shared.Screens.Gameplay.Rulesets.Keys.Playfield
                 CreateHitError();
                 CreateHitBubbles();
                 CreateJudgementHitBurst();
+                CreateHitTimingIndicators();
 
                 if (OnlineManager.CurrentGame?.Ruleset == MultiplayerGameRuleset.Battle_Royale &&
                     ConfigManager.EnableBattleRoyaleAlerts.Value)
@@ -612,6 +619,36 @@ namespace Quaver.Shared.Screens.Gameplay.Rulesets.Keys.Playfield
                     judgementHitBurst.Rotation = GameplayHitObjectKeys.GetObjectRotation(Screen.Map.Mode, lane);
 
                 JudgementHitBursts.Add(judgementHitBurst);
+            }
+        }
+
+        /// <summary>
+        ///     Creates the HitTiming indicator sprites.
+        /// </summary>
+        private void CreateHitTimingIndicators()
+        {
+            var skin = SkinManager.Skin.Keys[Screen.Map.Mode];
+            HitTimingIndicators = new List<HitTimingIndicator>();
+
+            var slowTex = SkinManager.Skin.HitTimingSlow;
+            var fastTex = SkinManager.Skin.HitTimingFast;
+            var size = new Vector2(slowTex.Width, slowTex.Height) * skin.HitTimingScale;
+
+            var indicatorCount = skin.DisplayJudgementsInEachColumn ?
+                Screen.Map.GetKeyCount(Screen.Map.HasScratchKey) : 1;
+
+            var playfieldOffset = (Playfield.Width / 2) - (Playfield.LaneSize / 2);
+
+            for (var lane = 0; lane < indicatorCount; lane++)
+            {
+                var indicator = new HitTimingIndicator(Screen, slowTex, fastTex, size, skin.HitTimingPosY)
+                {
+                    Parent = Playfield.ForegroundContainer,
+                    Alignment = Alignment.MidCenter,
+                    X = skin.DisplayJudgementsInEachColumn ? Receptors[lane].X - playfieldOffset : 0
+                };
+
+                HitTimingIndicators.Add(indicator);
             }
         }
 

@@ -214,6 +214,20 @@ namespace Quaver.Shared.Skinning
 
         internal bool RotateJudgements { get; private set; }
 
+        internal bool ShowHitTiming { get; private set; } = true;
+
+        [FixedScale]
+        internal float HitTimingPosY { get; private set; }
+
+        [FixedScale]
+        internal float HitTimingScale { get; private set; } = 1.0f;
+
+        internal int HitTimingThreshold { get; private set; } = 0;
+
+        internal int HitTimingBumpY { get; private set; } = -5;
+
+        internal int HitTimingBumpTime { get; private set; } = 183;
+
         [FixedScale]
         internal float HitErrorPosX { get; private set; }
 
@@ -635,6 +649,12 @@ namespace Quaver.Shared.Skinning
             JudgementBurstPosY = ConfigHelper.ReadInt32((int)JudgementBurstPosY, ini["JudgementBurstPosY"]);
             DisplayJudgementsInEachColumn = ConfigHelper.ReadBool(DisplayJudgementsInEachColumn, ini["DisplayJudgementsInEachColumn"]);
             RotateJudgements = ConfigHelper.ReadBool(RotateJudgements, ini["RotateJudgements"]);
+            ShowHitTiming = ConfigHelper.ReadBool(ShowHitTiming, ini["ShowHitTiming"]);
+            HitTimingPosY = ConfigHelper.ReadInt32((int)HitTimingPosY, ini["HitTimingPosY"]);
+            HitTimingScale = ConfigHelper.ReadFloat(HitTimingScale, ini["HitTimingScale"]);
+            HitTimingThreshold = ConfigHelper.ReadInt32(HitTimingThreshold, ini["HitTimingThreshold"]);
+            HitTimingBumpY = ConfigHelper.ReadInt32(HitTimingBumpY, ini["HitTimingBumpY"]);
+            HitTimingBumpTime = ConfigHelper.ReadInt32(HitTimingBumpTime, ini["HitTimingBumpTime"]);
             HealthBarType = ConfigHelper.ReadEnum(HealthBarType, ini["HealthBarType"]);
             HealthBarKeysAlignment = ConfigHelper.ReadEnum(HealthBarKeysAlignment, ini["HealthBarKeysAlignment"]);
             HealthBarScale = ConfigHelper.ReadInt32((int)HealthBarScale, ini["HealthBarScale"]);

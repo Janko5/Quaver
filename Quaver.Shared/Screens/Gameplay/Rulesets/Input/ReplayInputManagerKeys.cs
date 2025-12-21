@@ -19,6 +19,7 @@ using Quaver.Shared.Screens.Gameplay.Rulesets.Keys;
 using Quaver.Shared.Screens.Gameplay.Rulesets.Keys.HitObjects;
 using Quaver.Shared.Screens.Gameplay.Rulesets.Keys.Playfield;
 using Quaver.Shared.Screens.Tournament.Gameplay;
+using Quaver.Shared.Skinning;
 using Wobble.Logging;
 
 namespace Quaver.Shared.Screens.Gameplay.Rulesets.Input
@@ -220,6 +221,14 @@ namespace Quaver.Shared.Screens.Gameplay.Rulesets.Input
                     var lane = Math.Clamp(hitStat.HitObject.Lane - 1, 0, playfield.Stage.JudgementHitBursts.Count - 1);
                     playfield.Stage.HitBubbles.AddJudgement(hitStat.Judgement);
                     playfield.Stage.JudgementHitBursts[lane].PerformJudgementAnimation(hitStat.Judgement);
+
+                    // Show hit timing indicator for non-miss judgements if enabled
+                    var skin = SkinManager.Skin.Keys[Screen.Map.Mode];
+                    if (skin.ShowHitTiming && hitStat.Judgement != Judgement.Miss)
+                    {
+                        var hitTimingLane = Math.Clamp(hitStat.HitObject.Lane - 1, 0, playfield.Stage.HitTimingIndicators.Count - 1);
+                        playfield.Stage.HitTimingIndicators[hitTimingLane].PerformHitTimingAnimation((int)hitStat.HitDifference);
+                    }
 
                     CurrentVirtualReplayStat++;
                 }

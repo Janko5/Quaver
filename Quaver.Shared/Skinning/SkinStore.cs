@@ -153,6 +153,16 @@ namespace Quaver.Shared.Skinning
         internal Dictionary<Judgement, List<Texture2D>> Judgements { get; } = new Dictionary<Judgement, List<Texture2D>>();
 
         /// <summary>
+        ///     HitTiming texture for early hits (slow).
+        /// </summary>
+        internal Texture2D HitTimingSlow { get; private set; }
+
+        /// <summary>
+        ///     HitTiming texture for late hits (fast).
+        /// </summary>
+        internal Texture2D HitTimingFast { get; private set; }
+
+        /// <summary>
         ///     The numbers that display the user's current score.
         /// </summary>
         internal Texture2D[] ScoreDisplayNumbers { get; } = new Texture2D[10];
@@ -403,6 +413,7 @@ namespace Quaver.Shared.Skinning
             LoadGradeElements();
             LoadHitBubbleElements();
             LoadJudgements();
+            LoadHitTiming();
             LoadNumberDisplays();
             LoadPause();
             LoadScoreboard();
@@ -622,6 +633,20 @@ namespace Quaver.Shared.Skinning
                 JudgementOverlayBackground[j] = LoadSingleTexture($"{Dir}/{folder}/{judgementOverlayBackground}",
                     null);
             }
+        }
+
+        /// <summary>
+        ///     Loads HitTiming texture elements (slow/fast indicators).
+        /// </summary>
+        private void LoadHitTiming()
+        {
+            const string folder = "HitTiming";
+
+            // Note: Using correct spelling in code, but files may have typo (hittimig)
+            HitTimingSlow = LoadSingleTexture($"{Dir}/{folder}/hittiming-slow",
+                $"Quaver.Resources/Textures/Skins/Shared/HitTiming/hittiming-slow.png");
+            HitTimingFast = LoadSingleTexture($"{Dir}/{folder}/hittiming-fast",
+                $"Quaver.Resources/Textures/Skins/Shared/HitTiming/hittiming-fast.png");
         }
 
         /// <summary>

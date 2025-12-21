@@ -279,6 +279,13 @@ namespace Quaver.Shared.Screens.Gameplay.Rulesets.Input
                 playfield.Stage.HitError.AddJudgement(judgement, info.StartTime - time);
                 playfield.Stage.HitBubbles.AddJudgement(judgement);
                 playfield.Stage.JudgementHitBursts[judgementHitBurstLane].PerformJudgementAnimation(judgement);
+
+                // Show hit timing indicator for non-miss judgements
+                if (judgement != Judgement.Miss)
+                {
+                    var hitTimingLane = Math.Clamp(lane, 0, playfield.Stage.HitTimingIndicators.Count - 1);
+                    playfield.Stage.HitTimingIndicators[hitTimingLane].PerformHitTimingAnimation(hitDifference);
+                }
             }
 
             // Update Object Pooling
@@ -388,6 +395,13 @@ namespace Quaver.Shared.Screens.Gameplay.Rulesets.Input
                     playfield.Stage.HitError.AddJudgement(judgement, info.EndTime - time);
                     playfield.Stage.HitBubbles.AddJudgement(judgement);
                     playfield.Stage.JudgementHitBursts[judgementHitBurstLane].PerformJudgementAnimation(judgement);
+
+                    // Show hit timing indicator for non-miss judgements
+                    if (judgement != Judgement.Miss)
+                    {
+                        var hitTimingLane = Math.Clamp(lane, 0, playfield.Stage.HitTimingIndicators.Count - 1);
+                        playfield.Stage.HitTimingIndicators[hitTimingLane].PerformHitTimingAnimation(hitDifference);
+                    }
                 }
 
                 // play hitlighting animation on release
