@@ -300,6 +300,7 @@ namespace Quaver.Shared.Skinning
         internal AudioSample SoundHitWhistle { get; private set; }
         internal AudioSample SoundHitFinish { get; private set; }
         internal AudioSample SoundComboBreak { get; private set; }
+        internal AudioSample SoundMineExplode { get; private set; }
         internal AudioSample SoundApplause { get; private set; }
         internal AudioSample SoundScreenshot { get; private set; }
         internal AudioSample SoundClick { get; private set; }
@@ -838,6 +839,9 @@ namespace Quaver.Shared.Skinning
 
             const string soundComboBreak = "sound-combobreak";
             SoundComboBreak = LoadSoundEffect($"{sfxFolder}/{soundComboBreak}", soundComboBreak, "Gameplay");
+
+            const string soundMineExplode = "sound-mineexplode";
+            SoundMineExplode = LoadSoundEffect($"{sfxFolder}/{soundMineExplode}", soundMineExplode, "Gameplay");
 
             const string soundFailure = "sound-failure";
             SoundFailure = LoadSoundEffect($"{sfxFolder}/{soundFailure}", soundFailure, "Gameplay");
