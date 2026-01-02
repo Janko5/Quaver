@@ -58,7 +58,7 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard.Components
         /// <summary>
         ///     The user's avatar from the score
         /// </summary>
-        private Sprite Avatar { get; set; }
+        private SpriteAlphaMaskBlend Avatar { get; set; }
 
         /// <summary>
         ///     Displays the username of the player
@@ -307,7 +307,7 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard.Components
         {
             BlankImage = new Texture2D(GameBase.Game.GraphicsDevice, 1, 1);
 
-            Avatar = new Sprite
+            Avatar = new SpriteAlphaMaskBlend
             {
                 Parent = this,
                 Alignment = Alignment.MidLeft,
@@ -318,6 +318,8 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard.Components
                 Alpha = 0
             };
             
+            SetAvatarImage(BlankImage);
+
             if (ConfigManager.LeaderboardSection.Value == LeaderboardType.Clan)
                 Avatar.Size = new ScalableVector2(0, 0);
         }
@@ -628,33 +630,33 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard.Components
             if (ConfigManager.LeaderboardSection?.Value == LeaderboardType.Local)
                 steamId = SteamUser.GetSteamID().m_SteamID;
 
-            lock (Avatar)
-            lock (Avatar.Image)
+            if (Score.IsPersonalBest && !Score.Item.IsOnline)
             {
-                if (Score.IsPersonalBest && !Score.Item.IsOnline)
-                {
-                    Avatar.Image = SteamManager.GetAvatarOrUnknown(steamId);
-                    Avatar.Alpha = 1;
-                    return;
-                }
-
-                if (SteamManager.UserAvatars.ContainsKey(steamId))
-                {
-                    if (Avatar.Image == SteamManager.UserAvatars[steamId])
-                        return;
-
-                    Avatar.Alpha = 0;
-                    Avatar.ClearAnimations();
-                    Avatar.FadeTo(1, Easing.Linear, 400);
-
-                    Avatar.Image = SteamManager.UserAvatars[steamId];
-                    return;
-                }
-
-                Avatar.Image = UserInterface.UnknownAvatar;
-                Avatar.ClearAnimations();
-                Avatar.Alpha = 0;
+                SetAvatarImage(SteamManager.GetAvatarOrUnknown(steamId));
+                Avatar.Alpha = 1;
+                return;
             }
+
+            if (SteamManager.UserAvatars.ContainsKey(steamId))
+            {
+                // If it's already the same image, we don't need to do anything.
+                // Note: This check relies on the fact that we might not be storing the blended result back into UserAvatars,
+                // but checking direct reference might be tricky if we keep generating new textures.
+                // However, since we are setting Avatar.Image to a NEW texture every time, this check might always proceed if we compare Avatar.Image (blended) vs SteamManager (raw).
+                // So skipping this equality check or checking against the raw source would be better if we tracked it.
+                // But generally, regenerating on update is safer.
+                
+                Avatar.Alpha = 0;
+                Avatar.ClearAnimations();
+                Avatar.FadeTo(1, Easing.Linear, 400);
+
+                SetAvatarImage(SteamManager.UserAvatars[steamId]);
+                return;
+            }
+
+            SetAvatarImage(UserInterface.UnknownAvatar);
+            Avatar.ClearAnimations();
+            Avatar.Alpha = 0;
 
             SteamManager.SendAvatarRetrievalRequest(steamId);
         }
@@ -725,14 +727,10 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard.Components
             if (e.SteamId != (ulong) Score.Item.SteamId)
                 return;
 
-            lock (Avatar)
-            lock (Avatar.Image)
-            {
-                Avatar.Alpha = 0;
-                Avatar.ClearAnimations();
-                Avatar.FadeTo(1, Easing.Linear, 400);
-                Avatar.Image = e.Texture;
-            }
+            Avatar.Alpha = 0;
+            Avatar.ClearAnimations();
+            Avatar.FadeTo(1, Easing.Linear, 400);
+            SetAvatarImage(e.Texture);
         }
 
         /// <summary>
@@ -797,6 +795,27 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard.Components
                 ColorHelper.HexToColor("#5dc7f9"));
 
             game.CurrentScreen.ActivateTooltip(tooltip);
+        }
+
+        /// <summary>
+        ///    Sets the avatar image and applies the mask if it exists
+        /// </summary>
+        /// <param name="texture"></param>
+        private void SetAvatarImage(Texture2D texture)
+        {
+            GameBase.Game.ScheduledRenderTargetDraws.Add(() =>
+            {
+                var mask = SkinManager.Skin?.SongSelect?.LeaderboardAvatarMask;
+
+                if (mask != null && texture != null)
+                {
+                    Avatar.Image = Avatar.PerformBlend(texture, mask);
+                }
+                else
+                {
+                    Avatar.Image = texture;
+                }
+            });
         }
 
         /// <summary>

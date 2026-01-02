@@ -104,6 +104,8 @@ namespace Quaver.Shared.Skinning.Menus
 
         public Texture2D PersonalBestPanel { get; private set; }
 
+        public Texture2D LeaderboardAvatarMask { get; private set; }
+
         #endregion
 
         public SkinMenuSongSelect(SkinStore store, IniData config) : base(store, config)
@@ -210,6 +212,7 @@ namespace Quaver.Shared.Skinning.Menus
             PersonalBestPanel = LoadSkinElement(folder, "personalbest-panel.png");
             SelectFilterPanelRight = LoadSkinElement(folder, "select-filter-panel-right.png");
             SelectFilterPanelLeft = LoadSkinElement(folder, "select-filter-panel-left.png");
+            LeaderboardAvatarMask = Store.LoadSingleTexture($"{folder}/leaderboard-avatar-mask", "Quaver.Resources/Textures/UI/SongSelect/leaderboard-avatar-mask.png");
         }
     }
 }
