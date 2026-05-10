@@ -134,6 +134,7 @@ namespace Quaver.Shared.Database.Playlists
                 }
 
                 archive.AddAllFromDirectory(tempFolder, "*.qp");
+                Directory.CreateDirectory(Path.GetDirectoryName(outputPath));
                 archive.SaveTo(outputPath, CompressionType.Deflate);
             }
 

@@ -26,7 +26,7 @@ namespace Quaver.Shared.Screens.Selection.UI.Playlists
         /// </summary>
         private Playlist Playlist { get; }
 
-        private const string Play = "Play";
+        private const string OptionOpen = "Open";
 
         private const string Delete = "Delete";
 
@@ -36,7 +36,7 @@ namespace Quaver.Shared.Screens.Selection.UI.Playlists
 
         private const string Edit = "Edit";
 
-        private const string UploadAsMapPool = "Upload Playlist";
+        private static string GetUploadText(Playlist playlist) => playlist.IsOnlineMapPool() ? "Update Playlist" : "Upload Playlist";
 
         private const string Copy = "Copy Playlist";
 
@@ -48,15 +48,16 @@ namespace Quaver.Shared.Screens.Selection.UI.Playlists
         {
             Drawable = playlist;
             Playlist = playlist.Item;
+            Anchor = playlist;
 
             ItemSelected += (sender, args) =>
             {
-                var game = (QuaverGame) GameBase.Game;
+                var game = (QuaverGame)GameBase.Game;
                 var selectScreen = game.CurrentScreen as SelectionScreen;
 
                 switch (args.Text)
                 {
-                    case Play:
+                    case OptionOpen:
                         SelectPlaylist();
 
                         if (selectScreen != null)
@@ -98,7 +99,8 @@ namespace Quaver.Shared.Screens.Selection.UI.Playlists
 
                         DialogManager.Show(new CreatePlaylistDialog(Playlist));
                         break;
-                    case UploadAsMapPool:
+                    case "Upload Playlist":
+                    case "Update Playlist":
                         DialogManager.Show(new UploadPlaylistConfirmationDialog(Playlist));
                         break;
                     case Copy:
@@ -114,7 +116,7 @@ namespace Quaver.Shared.Screens.Selection.UI.Playlists
         {
             PlaylistManager.Selected.Value = Playlist;
 
-            var container = (PlaylistContainer) Drawable.Container;
+            var container = (PlaylistContainer)Drawable.Container;
 
             var index = container.AvailableItems.IndexOf(Playlist);
 
@@ -132,7 +134,7 @@ namespace Quaver.Shared.Screens.Selection.UI.Playlists
         {
             var options = new Dictionary<string, Color>()
             {
-                {Play, Color.White},
+                {OptionOpen, Color.White},
                 {Edit, ColorHelper.HexToColor("#F2994A")},
                 {Delete, ColorHelper.HexToColor($"#FF6868")},
                 {ExportToZip, ColorHelper.HexToColor("#0787E3")},
@@ -146,7 +148,7 @@ namespace Quaver.Shared.Screens.Selection.UI.Playlists
                 playlist.OnlineMapPoolCreatorId == -1 ||
                 playlist.OnlineMapPoolCreatorId == OnlineManager.Self?.OnlineUser.Id)
             {
-                options.Add(UploadAsMapPool, ColorHelper.HexToColor("#FFE76B"));
+                options.Add(GetUploadText(playlist), ColorHelper.HexToColor("#FFE76B"));
             }
 
             return options;

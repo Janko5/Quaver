@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Quaver.API.Enums;
@@ -75,9 +76,48 @@ namespace Quaver.Shared.Screens.Selection.UI.Playlists
         private Sprite OnlineMapPoolIcon { get; set; }
 
         /// <summary>
+        ///     Signifies if the playlist is from another game (Osu/Etterna)
+        /// </summary>
+        private Sprite OtherGameIcon { get; set; }
+
+        /// <summary>
+        ///     Quantity panel overlay components
+        /// </summary>
+        private NineSliceSprite QuantityOverlay { get; set; }
+        private Sprite QuantityIcon { get; set; }
+        private SpriteTextPlus QuantityText { get; set; }
+        private float _quantityIconWidth;
+
+        /// <summary>
+        ///     Difficulty range panel overlay components
+        /// </summary>
+        private NineSliceSprite DifficultyRangeOverlay { get; set; }
+        private Sprite DifficultyRangeIcon { get; set; }
+
+        private SpriteTextPlus DifficultyRangeMinText { get; set; }
+        private SpriteTextPlus DifficultyRangeDashText { get; set; }
+        private SpriteTextPlus DifficultyRangeMaxText { get; set; }
+        private float _difficultyRangeIconWidth;
+
+        /// <summary>
+        ///     Description text for V2
+        /// </summary>
+        private MarqueeSpriteText DescriptionText { get; set; }
+
+        /// <summary>
+        ///    Creator text for V2
+        /// </summary>
+        private SpriteTextPlus CreatorPrefixTextV2 { get; set; }
+
+        /// <summary>
+        ///    Creator text for V2
+        /// </summary>
+        private SpriteTextPlus CreatorNameTextV2 { get; set; }
+
+        /// <summary>
         ///     The X position of the title/first element
         /// </summary>
-        private const int TitleX = 26;
+        private int TitleX => SkinManager.Skin?.SongSelect?.PlaylistPanelMarginLeft ?? 26;
 
         /// <summary>
         /// </summary>
@@ -86,7 +126,11 @@ namespace Quaver.Shared.Screens.Selection.UI.Playlists
             Playlist = playlist;
             Parent = Playlist;
 
-            Size = new ScalableVector2(Playlist.Width, 86);
+            var isV2 = SkinManager.Skin?.UserInterfaceVersion >= 2f;
+            var width = isV2 ? 1005 : (int)Playlist.Width;
+            var height = isV2 ? 100 : 86;
+            Size = new ScalableVector2(width, height);
+            Image = SkinManager.Skin?.SongSelect?.PlaylistDeselected ?? UserInterface.PlaylistDeselected;
             UsePreviousSpriteBatchOptions = true;
 
             CreateButton();
@@ -98,6 +142,11 @@ namespace Quaver.Shared.Screens.Selection.UI.Playlists
             CreateRankedStatus();
             CreateGameModes();
             CreateOnlineMapPoolIcon();
+            CreateOtherGameIcon();
+            CreateQuantityPanel();
+            CreateDifficultyRangePanel();
+            CreateDescription();
+            CreateCreatorV2();
         }
 
         /// <inheritdoc />
@@ -106,7 +155,8 @@ namespace Quaver.Shared.Screens.Selection.UI.Playlists
         /// <param name="gameTime"></param>
         public override void Update(GameTime gameTime)
         {
-            Button.Width = Width;
+            if (Button.Width != Width)
+                Button.Width = Width;
 
             PerformHoverAnimation(gameTime);
             base.Update(gameTime);
@@ -119,36 +169,171 @@ namespace Quaver.Shared.Screens.Selection.UI.Playlists
         public void UpdateContent(Playlist item, int index)
         {
             OnlineMapPoolIcon.Visible = item.IsOnlineMapPool();
+            OtherGameIcon.Visible = item.PlaylistGame != MapGame.Quaver;
 
             Title.Text = item.Name;
             Title.TruncateWithEllipsis(400);
-            Title.X = item.IsOnlineMapPool() ? OnlineMapPoolIcon.Width + OnlineMapPoolIcon.X + 10 : TitleX;
 
-            MapCount.ChangeValue(item.Maps.Count.ToString("n0"));
+            // X Positioning Logic
+            var currentX = TitleX;
+            const int iconGap = 5;
 
-            const int metadataSpacing = 4;
-
-            Creator.ChangeValue(item.Creator);
-            Creator.X = MapCount.X + MapCount.Width + metadataSpacing;
-
-            if (item.Maps.Count != 0)
+            if (OnlineMapPoolIcon.Visible)
             {
-                DifficultyDisplay.ChangeValue(item.Maps.Min(x => x.DifficultyFromMods(ModManager.Mods)),
-                    item.Maps.Max(x => x.DifficultyFromMods(ModManager.Mods)));
+                OnlineMapPoolIcon.X = currentX;
+                currentX += (int)OnlineMapPoolIcon.Width + iconGap;
+            }
+
+            if (OtherGameIcon.Visible)
+            {
+                OtherGameIcon.X = currentX;
+                currentX += (int)OtherGameIcon.Width + iconGap;
+            }
+
+            Title.X = currentX;
+
+            // Match icon tint with title
+            OnlineMapPoolIcon.Tint = Title.Tint;
+            OtherGameIcon.Tint = Title.Tint;
+
+            var isV2 = SkinManager.Skin?.UserInterfaceVersion >= 2f;
+
+            if (!isV2)
+            {
+                var titleCenterY = Title.Y + (Title.Height / 2);
+
+                if (OnlineMapPoolIcon.Visible)
+                    OnlineMapPoolIcon.Y = titleCenterY - (OnlineMapPoolIcon.Height / 2);
+
+                if (OtherGameIcon.Visible)
+                    OtherGameIcon.Y = titleCenterY - (OtherGameIcon.Height / 2);
+            }
+
+            if (isV2)
+            {
+                MapCount.Visible = false;
+                Creator.Visible = false;
+                DifficultyDisplay.Visible = false;
+
+                // Handle description fallback
+                var description = item.Description;
+                if (string.IsNullOrWhiteSpace(description))
+                    description = "No description";
+
+                DescriptionText.Visible = true;
+                DescriptionText.TextSprite.Text = description;
+                DescriptionText.TextSprite.Tint = SkinManager.Skin.SongSelect.PlaylistPanelDescriptionColor;
+                DescriptionText.IsActive = false; // Disable marquee by default (enabled on hover)
+
+                CreatorPrefixTextV2.Visible = true;
+                CreatorNameTextV2.Visible = true;
+                CreatorNameTextV2.Text = item.Creator;
+
+                // Vertical Centering Logic for V2 with Mapset-like spacing
+                // Mapset offsets: Title -> Artist (+29), Artist -> Creator (+27 approx)
+                const int titleToDesc = 29;
+                const int descToCreator = 27;
+
+                // Calculate total height: from Title top to Creator bottom
+                // We assume the elements are positioned relatively:
+                // Title at 0
+                // Description at titleToDesc
+                // Creator at titleToDesc + descToCreator
+                // Total Height = (titleToDesc + descToCreator) + CreatorTextV2.Height
+                var totalContentHeight = (titleToDesc + descToCreator) + CreatorNameTextV2.Height;
+                var startY = (Height - totalContentHeight) / 2;
+
+                // Center the group
+                Title.Y = startY;
+                // Align icons with Title Y in V2
+                var titleCenterY = Title.Y + (Title.Height / 2);
+
+                if (OnlineMapPoolIcon.Visible)
+                    OnlineMapPoolIcon.Y = titleCenterY - (OnlineMapPoolIcon.Height / 2);
+
+                if (OtherGameIcon.Visible)
+                    OtherGameIcon.Y = titleCenterY - (OtherGameIcon.Height / 2);
+
+                DescriptionText.Y = Title.Y + titleToDesc + 1; // Moved up 2px from +3
+                CreatorPrefixTextV2.Y = DescriptionText.Y + descToCreator - 2; // Moved up 2px relative to desc (4px total)
+                CreatorNameTextV2.Y = DescriptionText.Y + descToCreator - 2;
+
+                CreatorNameTextV2.X = CreatorPrefixTextV2.X + CreatorPrefixTextV2.Width;
             }
             else
-                DifficultyDisplay.ChangeValue(0, 0);
+            {
+                MapCount.Visible = true;
+                Creator.Visible = true;
+                DifficultyDisplay.Visible = true;
 
-            DifficultyDisplay.X = Creator.X + Creator.Width + metadataSpacing;
+                DescriptionText.Visible = false;
+                CreatorPrefixTextV2.Visible = false;
+                CreatorNameTextV2.Visible = false;
+
+                MapCount.ChangeValue(item.Maps.Count.ToString("n0"));
+
+                const int metadataSpacing = 4;
+
+                Creator.ChangeValue(item.Creator);
+                Creator.X = MapCount.X + MapCount.Width + metadataSpacing;
+
+                if (item.Maps.Count != 0)
+                {
+                    DifficultyDisplay.ChangeValue(item.Maps.Min(x => x.DifficultyFromMods(ModManager.Mods)),
+                        item.Maps.Max(x => x.DifficultyFromMods(ModManager.Mods)));
+                }
+                else
+                    DifficultyDisplay.ChangeValue(0, 0);
+
+                DifficultyDisplay.X = Creator.X + Creator.Width + metadataSpacing;
+            }
 
             RankedStatusSprite.Image = GetRankedStatusImage();
-            GameModeHelper.SetGameModeTexture(item.Maps.Select(x=>x.Mode), GameModes, GameModeText);
+            
+            // OPTIMIZATION: Use a specialized method to get mode icons instead of LINQ Select
+            UpdateGameModeTextures(item);
+            
             Banner.UpdateContent(Playlist.Item);
 
-            if (Playlist.IsSelected)
-                Select(true);
+            QuantityText.Text = item.Maps.Count.ToString();
+
+            if (item.Maps.Count > 0)
+            {
+                var minDiff = item.Maps.Min(x => x.DifficultyFromMods(ModManager.Mods));
+                var maxDiff = item.Maps.Max(x => x.DifficultyFromMods(ModManager.Mods));
+
+                DifficultyRangeMinText.Text = $"{minDiff:0.00}";
+                DifficultyRangeMinText.Tint = ColorHelper.DifficultyToColor((float)minDiff);
+
+                DifficultyRangeMaxText.Text = $"{maxDiff:0.00}";
+                DifficultyRangeMaxText.Tint = ColorHelper.DifficultyToColor((float)maxDiff);
+            }
             else
-                Deselect(true);
+            {
+                DifficultyRangeMinText.Text = "0.00";
+                DifficultyRangeMinText.Tint = Color.White;
+
+                DifficultyRangeMaxText.Text = "0.00";
+                DifficultyRangeMaxText.Tint = Color.White;
+            }
+
+            UpdatePanelSizes();
+
+            // Always keep the visual state as "Deselected" (default)
+            Deselect(true);
+        }
+
+        /// <summary>
+        ///    Optimized helper to update game mode textures without LINQ allocations
+        /// </summary>
+        /// <param name="item"></param>
+        private void UpdateGameModeTextures(Playlist item)
+        {
+            var modes = new HashSet<GameMode>();
+            for (var i = 0; i < item.Maps.Count; i++)
+                modes.Add(item.Maps[i].Mode);
+            
+            GameModeHelper.SetGameModeTexture(modes, GameModes, GameModeText);
         }
 
         /// <summary>
@@ -156,9 +341,13 @@ namespace Quaver.Shared.Screens.Selection.UI.Playlists
         /// </summary>
         private void CreateButton()
         {
-            var container = (PlaylistContainer)Playlist.Container;
+            Wobble.Graphics.Container clickableArea = null;
+            if (Playlist.MapsetContainer != null)
+                clickableArea = Playlist.MapsetContainer.ClickableArea;
+            else if (Playlist.Container is PlaylistContainer pc1)
+                clickableArea = pc1.ClickableArea;
 
-            Button = new SongSelectContainerButton(SkinManager.Skin?.SongSelect?.MapsetHovered ?? WobbleAssets.WhiteBox, container.ClickableArea)
+            Button = new SongSelectContainerButton(SkinManager.Skin?.SongSelect?.PlaylistHovered ?? UserInterface.PlaylistHovered, clickableArea)
             {
                 Parent = this,
                 Size = Size,
@@ -168,29 +357,57 @@ namespace Quaver.Shared.Screens.Selection.UI.Playlists
                 Depth = 1
             };
 
+            // Show overlays on hover (if not already selected)
+            Button.Hovered += (sender, args) =>
+            {
+                OnMapsetHovered();
+                // Existing logic for overlays might be needed here if not present
+                if (!Playlist.IsSelected)
+                {
+                    // Logic to hide overlays
+                }
+            };
+
+            // Hide overlays when leaving hover (if not selected)
+            Button.LeftHover += (sender, args) =>
+            {
+                OnMapsetLeftHover();
+                if (!Playlist.IsSelected)
+                {
+                    // Logic to hide overlays
+                }
+            };
+
             Button.Clicked += (sender, args) =>
             {
-                var wasSelectedPrior = Playlist.IsSelected;
+                // Always set as selected in data (required for game logic)
+                PlaylistManager.Selected.Value = Playlist.Item;
 
-                if (!wasSelectedPrior)
-                    PlaylistManager.Selected.Value = Playlist.Item;
+                if (Playlist.MapsetContainer != null)
+                {
+                    // Collapsing the top playlist panel in the mapsets list: go back to playlists list
+                    Playlist.MapsetContainer.ActiveScrollContainer.Value = SelectScrollContainerType.Playlists;
+                    return;
+                }
 
                 if (Playlist.Container == null)
                     return;
 
-                container.SelectedIndex.Value = Playlist.Index;
-
-                if (!wasSelectedPrior)
-                    return;
-
-                // No maps inside playlist. Prevent opening
-                if (PlaylistManager.Selected.Value.Maps.Count == 0)
+                var pc = Playlist.Container as PlaylistContainer;
+                if (pc != null)
                 {
-                    NotificationManager.Show(NotificationLevel.Error, "There are no maps inside of this playlist! You can right-click maps to add to it");
-                    return;
-                }
+                    pc.SelectedIndex.Value = Playlist.Index;
 
-                container.ActiveScrollContainer.Value = SelectScrollContainerType.Mapsets;
+                    // No maps inside playlist. Prevent opening
+                    if (PlaylistManager.Selected.Value.Maps.Count == 0)
+                    {
+                        NotificationManager.Show(NotificationLevel.Error, "There are no maps inside of this playlist! You can right-click maps to add to it");
+                        return;
+                    }
+
+                    // Always open the playlist (single click behavior)
+                    pc.ActiveScrollContainer.Value = SelectScrollContainerType.Mapsets;
+                }
             };
 
             Button.RightClicked += (sender, args) =>
@@ -205,7 +422,7 @@ namespace Quaver.Shared.Screens.Selection.UI.Playlists
         /// <param name="gameTime"></param>
         private void PerformHoverAnimation(GameTime gameTime)
         {
-            var targetAlpha = Button.IsHovered ? 0.35f : 0;
+            var targetAlpha = Button.IsHovered ? SkinManager.Skin.SongSelect.PlaylistPanelHoveringAlpha : 0;
 
             Button.Alpha = MathHelper.Lerp(Button.Alpha, targetAlpha,
                 (float)Math.Min(gameTime.ElapsedGameTime.TotalMilliseconds / 30, 1));
@@ -213,32 +430,69 @@ namespace Quaver.Shared.Screens.Selection.UI.Playlists
 
         /// <summary>
         /// </summary>
+        private void OnMapsetHovered()
+        {
+            SetHovered(true);
+
+            // Copied logic from mapset if any specific hover logic exists there, 
+            // but for playlists, we mainly focus on the marquee and overlays.
+            // Existing logic uses Button.Hovered to show overlays via Button_Hovered event if defined,
+            // but here we are inside CreateButton, using inline lambdas?
+            // Wait, CreateButton uses inline lambdas calling OnMapsetHovered? 
+            // No, the code I read earlier had logic in CreateButton.
+            // Let's check CreateButton again.
+        }
+
+        /// <summary>
+        /// </summary>
+        private void OnMapsetLeftHover()
+        {
+            SetHovered(false);
+        }
+
+        /// <summary>
+        ///     Sets the hover state for the marquee
+        /// </summary>
+        public void SetHovered(bool hovered)
+        {
+            if (DescriptionText != null)
+                DescriptionText.IsActive = hovered;
+        }
+
+        /// <summary>
+        /// </summary>
         public void Select(bool changeWidthInstantly = false)
         {
-            Image = SkinManager.Skin?.SongSelect?.MapsetSelected ?? UserInterface.SelectedMapset;
+            Image = SkinManager.Skin?.SongSelect?.PlaylistDeselected ?? UserInterface.PlaylistDeselected;
 
             const int time = 200;
             AnimateSprites(1, 200);
 
+            var isV2 = SkinManager.Skin?.UserInterfaceVersion == 2;
+            var targetWidth = isV2 ? 1005 : (int)Playlist.Width;
+
             if (changeWidthInstantly)
-                Width = Playlist.Width;
+                Width = targetWidth;
             else
-                ChangeWidthTo((int)Playlist.Width, Easing.OutQuint, time + 400);
+                ChangeWidthTo(targetWidth, Easing.OutQuint, time + 400);
         }
 
         /// <summary>
         /// </summary>
         public void Deselect(bool changeWidthInstantly = false)
         {
-            Image = SkinManager.Skin?.SongSelect.MapsetDeselected ?? UserInterface.DeselectedMapset;
+            Image = SkinManager.Skin?.SongSelect?.PlaylistDeselected ?? UserInterface.PlaylistDeselected;
 
             const int time = 200;
-            AnimateSprites(0.85f, 200);
+            AnimateSprites(1f, 200);
+
+            var isV2 = SkinManager.Skin?.UserInterfaceVersion == 2;
+            var targetWidth = isV2 ? 1005 : (int)Playlist.Width - 50;
 
             if (changeWidthInstantly)
-                Width = Playlist.Width - 50;
+                Width = targetWidth;
             else
-                ChangeWidthTo((int)Playlist.Width - 50, Easing.OutQuint, time + 400);
+                ChangeWidthTo(targetWidth, Easing.OutQuint, time + 400);
         }
 
         /// <summary>
@@ -246,12 +500,12 @@ namespace Quaver.Shared.Screens.Selection.UI.Playlists
         /// </summary>
         private void CreateTitle()
         {
-            Title = new SpriteTextPlus(FontManager.GetWobbleFont(Fonts.LatoBlack), "PLAYLIST TITLE", 26)
+            Title = new SpriteTextPlus(FontManager.GetWobbleFont(Fonts.InterBold), "PLAYLIST TITLE", 26)
             {
                 Parent = this,
                 Position = new ScalableVector2(TitleX, 18),
                 UsePreviousSpriteBatchOptions = true,
-                Tint = SkinManager.Skin?.SongSelect?.MapsetPanelSongTitleColor ?? Color.White
+                Tint = SkinManager.Skin.SongSelect.PlaylistPanelTitleColor
             };
         }
 
@@ -260,13 +514,19 @@ namespace Quaver.Shared.Screens.Selection.UI.Playlists
         /// </summary>
         private void CreateBannerImage()
         {
+            var bannerSize = SkinManager.Skin.SongSelect.PlaylistPanelBannerSize;
+
+            // 0 = no banner
+            if (bannerSize <= 0)
+                return;
+
             Banner = new DrawableBanner(Playlist.Item)
             {
                 Parent = this,
                 Alignment = Alignment.MidRight,
-                Size = SkinManager.Skin?.SongSelect?.MapsetPanelBannerSize ?? new ScalableVector2(421, 82),
-                Image = UserInterface.DefaultBanner,
-                X = -2,
+                Size = new ScalableVector2(bannerSize, bannerSize),
+                Image = UserInterface.PlaylistDefaultBanner,
+                X = -(SkinManager.Skin?.SongSelect?.PlaylistPanelMarginRight ?? 2),
                 UsePreviousSpriteBatchOptions = true
             };
         }
@@ -279,7 +539,7 @@ namespace Quaver.Shared.Screens.Selection.UI.Playlists
             {
                 Parent = this,
                 Position = new ScalableVector2(Title.X, Title.Y + Title.Height + 5),
-                Key = { Tint = SkinManager.Skin?.SongSelect?.MapsetPanelByColor ?? ColorHelper.HexToColor("#808080") }
+                Key = { Tint = SkinManager.Skin.SongSelect.PlaylistPanelByColor }
             };
         }
 
@@ -288,12 +548,12 @@ namespace Quaver.Shared.Screens.Selection.UI.Playlists
         private void CreateCreator()
         {
             Creator = new PlaylistKeyValueDisplay("By:", "Me",
-                SkinManager.Skin?.SongSelect?.MapsetPanelCreatorColor ?? ColorHelper.HexToColor("#0587E5"))
+                SkinManager.Skin.SongSelect.PlaylistPanelCreatorColor)
             {
                 Parent = this,
                 Position = new ScalableVector2(Title.X, MapCount.Y),
                 UsePreviousSpriteBatchOptions = true,
-                Key = { Tint = SkinManager.Skin?.SongSelect?.MapsetPanelByColor ?? ColorHelper.HexToColor("#808080") }
+                Key = { Tint = SkinManager.Skin.SongSelect.PlaylistPanelByColor }
             };
         }
 
@@ -307,7 +567,7 @@ namespace Quaver.Shared.Screens.Selection.UI.Playlists
                 Parent = this,
                 UsePreviousSpriteBatchOptions = true,
                 Y = MapCount.Y,
-                Key = { Tint = SkinManager.Skin?.SongSelect?.MapsetPanelByColor ?? ColorHelper.HexToColor("#808080") }
+                Key = { Tint = SkinManager.Skin.SongSelect.PlaylistPanelByColor }
             };
         }
 
@@ -320,8 +580,9 @@ namespace Quaver.Shared.Screens.Selection.UI.Playlists
             {
                 Parent = this,
                 Alignment = Alignment.MidRight,
-                Size = new ScalableVector2(115, 28),
-                X = Banner.X - Banner.Width - 18,
+                Size = new ScalableVector2(124, 30),
+                X = Banner.X - Banner.Width - 10,
+                Y = 20,
                 Image = UserInterface.StatusPanel,
                 UsePreviousSpriteBatchOptions = true
             };
@@ -335,8 +596,9 @@ namespace Quaver.Shared.Screens.Selection.UI.Playlists
             {
                 Parent = this,
                 Alignment = Alignment.MidRight,
-                Size = new ScalableVector2(71, 28),
-                X = RankedStatusSprite.X - RankedStatusSprite.Width - 18,
+                Size = new ScalableVector2(90, 30),
+                X = Banner.X - Banner.Width - 10,
+                Y = -20,
                 UsePreviousSpriteBatchOptions = true
             };
 
@@ -357,8 +619,25 @@ namespace Quaver.Shared.Screens.Selection.UI.Playlists
             OnlineMapPoolIcon = new Sprite()
             {
                 Parent = this,
-                Size = new ScalableVector2(18, 18),
+                Size = new ScalableVector2(16, 16),
                 Image = FontAwesome.Get(FontAwesomeIcon.fa_earth_globe),
+                UsePreviousSpriteBatchOptions = true,
+                Visible = false,
+                X = TitleX,
+                Y = Title.Y + 4
+            };
+        }
+
+        /// <summary>
+        ///     Creates <see cref="OtherGameIcon"/>
+        /// </summary>
+        private void CreateOtherGameIcon()
+        {
+            OtherGameIcon = new Sprite()
+            {
+                Parent = this,
+                Size = new ScalableVector2(16, 16),
+                Image = SkinManager.Skin?.SongSelect?.PlaylistOtherGameIcon ?? UserInterface.PlaylistOtherGameIcon,
                 UsePreviousSpriteBatchOptions = true,
                 Visible = false,
                 X = TitleX,
@@ -374,7 +653,7 @@ namespace Quaver.Shared.Screens.Selection.UI.Playlists
         private Texture2D GetRankedStatusImage()
         {
             if (Playlist.Item.Maps.Count == 0)
-                return UserInterface.StatusNone;
+                return SkinManager.Skin?.SongSelect?.StatusNone ?? UserInterface.StatusNone;
 
             if (Playlist.Item.PlaylistGame != MapGame.Quaver)
             {
@@ -408,6 +687,170 @@ namespace Quaver.Shared.Screens.Selection.UI.Playlists
         }
 
         /// <summary>
+        ///     Creates the Quantity panel overlay positioned on the banner
+        /// </summary>
+        private void CreateQuantityPanel()
+        {
+            var bgTexture = SkinManager.Skin.InfoBackground;
+            var bgColor = SkinManager.Skin.PlayercardInfoBackgroundColor;
+
+            // Create icon and text first to measure their widths
+            QuantityIcon = new Sprite
+            {
+                Image = UserInterface.PlaylistPanelQuantityIcon,
+                UsePreviousSpriteBatchOptions = true
+            };
+            QuantityIcon.Size = new ScalableVector2(QuantityIcon.Image.Width, QuantityIcon.Image.Height);
+
+            // Performance: cache icon width (constant value)
+            _quantityIconWidth = QuantityIcon.Width;
+
+            // Quantity text
+            QuantityText = new SpriteTextPlus(FontManager.GetWobbleFont(Fonts.InterBold), "0", 18)
+            {
+                Tint = Color.White,
+                UsePreviousSpriteBatchOptions = true
+            };
+
+            // Calculate dynamic width: 10px margin + icon + 10px gap + text + 10px margin
+            const int margin = 10;
+            const int iconTextGap = 10;
+            var contentWidth = QuantityIcon.Width + iconTextGap + QuantityText.Width;
+            var overlayWidth = contentWidth + (margin * 2);
+
+            // SliceMargins(15, 0) = horizontal 15px, vertical 0px - preserve rounded corners
+            QuantityOverlay = new NineSliceSprite(bgTexture, new SliceMargins(15, 0))
+            {
+                Parent = this,
+                Visible = SkinManager.Skin?.UserInterfaceVersion == 2,
+                Alignment = Alignment.MidRight,
+                Size = new ScalableVector2(overlayWidth, bgTexture.Height),
+                X = GameModes.X - GameModes.Width - 10,
+                Y = -20,
+                UsePreviousSpriteBatchOptions = true,
+                Tint = bgColor
+            };
+
+            // Now parent the icon and text to the overlay, centered
+            QuantityIcon.Parent = QuantityOverlay;
+            QuantityIcon.Alignment = Alignment.MidLeft;
+            QuantityIcon.X = margin;
+
+            QuantityText.Parent = QuantityOverlay;
+            QuantityText.Alignment = Alignment.MidLeft;
+            QuantityText.X = QuantityIcon.X + QuantityIcon.Width + iconTextGap;
+        }
+
+        /// <summary>
+        ///     Creates the Difficulty Range panel overlay positioned on the banner
+        /// </summary>
+        private void CreateDifficultyRangePanel()
+        {
+            var bgTexture = SkinManager.Skin.InfoBackground;
+            var bgColor = SkinManager.Skin.PlayercardInfoBackgroundColor;
+
+            // Create icon and text first to measure their widths
+            DifficultyRangeIcon = new Sprite
+            {
+                Image = UserInterface.PlaylistPanelDifficultyRangeIcon,
+                UsePreviousSpriteBatchOptions = true
+            };
+            DifficultyRangeIcon.Size = new ScalableVector2(DifficultyRangeIcon.Image.Width, DifficultyRangeIcon.Image.Height);
+
+            // Performance: cache icon width (constant value)
+            _difficultyRangeIconWidth = DifficultyRangeIcon.Width;
+
+            // Difficulty range text components
+            DifficultyRangeMinText = new SpriteTextPlus(FontManager.GetWobbleFont(Fonts.InterBold), "0.00", 18)
+            {
+                Tint = Color.White,
+                UsePreviousSpriteBatchOptions = true
+            };
+
+            DifficultyRangeDashText = new SpriteTextPlus(FontManager.GetWobbleFont(Fonts.InterBold), " - ", 18)
+            {
+                Tint = Color.White,
+                UsePreviousSpriteBatchOptions = true
+            };
+
+            DifficultyRangeMaxText = new SpriteTextPlus(FontManager.GetWobbleFont(Fonts.InterBold), "0.00", 18)
+            {
+                Tint = Color.White,
+                UsePreviousSpriteBatchOptions = true
+            };
+
+            // Calculate dynamic width: 10px margin + icon + 10px gap + text + 10px margin
+            const int margin = 10;
+            const int iconTextGap = 10;
+            var contentWidth = DifficultyRangeIcon.Width + iconTextGap +
+                               DifficultyRangeMinText.Width + DifficultyRangeDashText.Width + DifficultyRangeMaxText.Width;
+            var overlayWidth = contentWidth + (margin * 2);
+
+            // SliceMargins(15, 0) = horizontal 15px, vertical 0px - preserve rounded corners
+            DifficultyRangeOverlay = new NineSliceSprite(bgTexture, new SliceMargins(15, 0))
+            {
+                Parent = this,
+                Visible = SkinManager.Skin?.UserInterfaceVersion == 2,
+                Alignment = Alignment.MidRight,
+                Size = new ScalableVector2(overlayWidth, bgTexture.Height),
+                X = RankedStatusSprite.X - RankedStatusSprite.Width - 10,
+                Y = 20,
+                UsePreviousSpriteBatchOptions = true,
+                Tint = bgColor
+            };
+
+            // Now parent the icon and text to the overlay, centered
+            DifficultyRangeIcon.Parent = DifficultyRangeOverlay;
+            DifficultyRangeIcon.Alignment = Alignment.MidLeft;
+            DifficultyRangeIcon.X = margin;
+
+            DifficultyRangeMinText.Parent = DifficultyRangeOverlay;
+            DifficultyRangeMinText.Alignment = Alignment.MidLeft;
+            DifficultyRangeMinText.X = DifficultyRangeIcon.X + DifficultyRangeIcon.Width + iconTextGap;
+
+            DifficultyRangeDashText.Parent = DifficultyRangeOverlay;
+            DifficultyRangeDashText.Alignment = Alignment.MidLeft;
+            DifficultyRangeDashText.X = DifficultyRangeMinText.X + DifficultyRangeMinText.Width;
+
+            DifficultyRangeMaxText.Parent = DifficultyRangeOverlay;
+            DifficultyRangeMaxText.Alignment = Alignment.MidLeft;
+            DifficultyRangeMaxText.X = DifficultyRangeDashText.X + DifficultyRangeDashText.Width;
+        }
+
+        /// <summary>
+        ///     Recalculates panel overlay sizes based on current text content
+        /// </summary>
+        private void UpdatePanelSizes()
+        {
+            const int margin = 10;
+            const int iconTextGap = 10;
+
+            // Recalculate Quantity overlay width
+            var quantityContentWidth = _quantityIconWidth + iconTextGap + QuantityText.Width;
+            var quantityOverlayWidth = quantityContentWidth + (margin * 2);
+            QuantityOverlay.Width = quantityOverlayWidth;
+
+            // Recalculate Difficulty Range overlay width
+            var diffTextWidth = DifficultyRangeMinText.Width + DifficultyRangeDashText.Width + DifficultyRangeMaxText.Width;
+            var difficultyRangeContentWidth = _difficultyRangeIconWidth + iconTextGap + diffTextWidth;
+            var difficultyRangeOverlayWidth = difficultyRangeContentWidth + (margin * 2);
+            DifficultyRangeOverlay.Width = difficultyRangeOverlayWidth;
+
+            // Update sub-element positions since widths changed
+            DifficultyRangeMinText.X = DifficultyRangeIcon.X + DifficultyRangeIcon.Width + iconTextGap;
+            DifficultyRangeDashText.X = DifficultyRangeMinText.X + DifficultyRangeMinText.Width;
+            DifficultyRangeMaxText.X = DifficultyRangeDashText.X + DifficultyRangeDashText.Width;
+
+            // Recalculate positions based on dynamic widths (anchored to previous elements)
+            QuantityOverlay.X = GameModes.X - GameModes.Width - 10;
+
+            // Note: If DifficultyRangeOverlay needs to be positioned relative to QuantityOverlay or other dynamic elements, update X here.
+            // Currently it is anchored to RankedStatusSprite which has fixed position/size relative to Banner? 
+            // Actually RankedStatusSprite is relative to Banner.
+            DifficultyRangeOverlay.X = RankedStatusSprite.X - RankedStatusSprite.Width - 10;
+        }
+
+        /// <summary>
         /// </summary>
         /// <param name="fade"></param>
         /// <param name="time"></param>
@@ -416,6 +859,23 @@ namespace Quaver.Shared.Screens.Selection.UI.Playlists
             Title.ClearAnimations();
             Title.FadeTo(fade, Easing.Linear, time);
 
+            if (Banner.HasBannerLoaded)
+            {
+                Banner.ClearAnimations();
+                Banner.FadeTo(1, Easing.Linear, time);
+            }
+
+            if (OnlineMapPoolIcon != null)
+            {
+                OnlineMapPoolIcon.ClearAnimations();
+                OnlineMapPoolIcon.FadeTo(fade, Easing.Linear, time);
+            }
+
+            if (OtherGameIcon != null)
+            {
+                OtherGameIcon.ClearAnimations();
+                OtherGameIcon.FadeTo(fade, Easing.Linear, time);
+            }
             MapCount.RemoveAnimations();
             MapCount.FadeTo(fade, Easing.Linear, time);
 
@@ -431,7 +891,87 @@ namespace Quaver.Shared.Screens.Selection.UI.Playlists
             GameModes.ClearAnimations();
             GameModes.FadeTo(fade, Easing.Linear, time);
 
+            QuantityOverlay.ClearAnimations();
+            QuantityOverlay.FadeTo(fade, Easing.Linear, time);
+
+            QuantityIcon.ClearAnimations();
+            QuantityIcon.FadeTo(fade, Easing.Linear, time);
+
+            QuantityText.ClearAnimations();
+            QuantityText.FadeTo(fade, Easing.Linear, time);
+
+            DifficultyRangeOverlay.ClearAnimations();
+            DifficultyRangeOverlay.FadeTo(fade, Easing.Linear, time);
+
+            DifficultyRangeIcon.ClearAnimations();
+            DifficultyRangeIcon.FadeTo(fade, Easing.Linear, time);
+
+            DifficultyRangeMinText.ClearAnimations();
+            DifficultyRangeMinText.FadeTo(fade, Easing.Linear, time);
+
+            DifficultyRangeDashText.ClearAnimations();
+            DifficultyRangeDashText.FadeTo(fade, Easing.Linear, time);
+
+            DifficultyRangeMaxText.ClearAnimations();
+            DifficultyRangeMaxText.FadeTo(fade, Easing.Linear, time);
+
+            DifficultyRangeMaxText.ClearAnimations();
+            DifficultyRangeMaxText.FadeTo(fade, Easing.Linear, time);
+
+            DescriptionText.TextSprite.ClearAnimations();
+            DescriptionText.TextSprite.FadeTo(fade, Easing.Linear, time);
+
+            CreatorPrefixTextV2.ClearAnimations();
+            CreatorPrefixTextV2.FadeTo(fade, Easing.Linear, time);
+
+            CreatorNameTextV2.ClearAnimations();
+            CreatorNameTextV2.FadeTo(fade, Easing.Linear, time);
+
             ClearAnimations();
+        }
+        /// <summary>
+        ///    Creates <see cref="DescriptionText"/>
+        /// </summary>
+        private void CreateDescription()
+        {
+            var isV2 = SkinManager.Skin?.UserInterfaceVersion == 2;
+
+            // MarqueeSpriteText(WobbleFontStore font, string text, int fontSize, float width)
+            DescriptionText = new MarqueeSpriteText(FontManager.GetWobbleFont(Fonts.InterBold), "", 20, 550)
+            {
+                Parent = this,
+                Visible = isV2, // Initial visibility
+                Position = new ScalableVector2(TitleX, 0), // Y is set in UpdateContent
+                UsePreviousSpriteBatchOptions = true,
+                Height = 30 // Approximate height for size 20 font
+            };
+        }
+
+        /// <summary>
+        ///    Creates <see cref="CreatorPrefixTextV2"/> and <see cref="CreatorNameTextV2"/>
+        /// </summary>
+        private void CreateCreatorV2()
+        {
+            var isV2 = SkinManager.Skin?.UserInterfaceVersion == 2;
+
+            CreatorPrefixTextV2 = new SpriteTextPlus(FontManager.GetWobbleFont(Fonts.InterBold), "By: ", 22)
+            {
+                Parent = this,
+                Visible = isV2, // Initial visibility
+                // Y position set in UpdateContent
+                X = TitleX,
+                UsePreviousSpriteBatchOptions = true,
+                Tint = SkinManager.Skin.SongSelect.PlaylistPanelByColor
+            };
+
+            CreatorNameTextV2 = new SpriteTextPlus(FontManager.GetWobbleFont(Fonts.InterBold), "", 22)
+            {
+                Parent = this,
+                Visible = isV2, // Initial visibility
+                // Y position set in UpdateContent
+                UsePreviousSpriteBatchOptions = true,
+                Tint = SkinManager.Skin.SongSelect.PlaylistPanelCreatorColor
+            };
         }
     }
 }

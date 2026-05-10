@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using Quaver.Shared.Assets;
 using Quaver.Shared.Database.Maps;
@@ -11,7 +12,11 @@ using Wobble.Bindables;
 using Wobble.Graphics;
 using Wobble.Graphics.Sprites.Text;
 using Wobble.Input;
+using Wobble;
 using Wobble.Managers;
+using Wobble.Window;
+using Quaver.Shared.Skinning;
+using Quaver.Shared;
 
 namespace Quaver.Shared.Screens.Selection.UI.Playlists
 {
@@ -52,13 +57,94 @@ namespace Quaver.Shared.Screens.Selection.UI.Playlists
         public PlaylistContainer(Bindable<SelectScrollContainerType> activeScrollContainer) : base(PlaylistManager.Playlists, 12)
         {
             ActiveScrollContainer = activeScrollContainer;
-            NoPlaylistText = new SpriteTextPlus(FontManager.GetWobbleFont(Fonts.LatoHeavy), "No playlists created!", 30)
+            NoPlaylistText = new SpriteTextPlus(FontManager.GetWobbleFont(Fonts.InterBold), "No playlists created!", 30)
             {
                 Parent = this,
                 Alignment = Alignment.MidCenter,
                 Tint = Color.White,
                 Visible = PlaylistManager.Playlists.Count == 0
             };
+
+            AutoScaleHeight = false;
+
+            // Define the scissor rasterizer state for clipping
+            ScissorRasterizer = new RasterizerState
+            {
+                ScissorTestEnable = true,
+                CullMode = CullMode.None
+            };
+        }
+
+        /// <summary>
+        ///    The rasterizer state used for clipping the container.
+        /// </summary>
+        private RasterizerState ScissorRasterizer { get; }
+
+        /// <inheritdoc />
+        public override void Draw(GameTime gameTime)
+        {
+            if (!Visible)
+                return;
+
+            var game = GameBase.Game;
+            if (game?.GraphicsDevice == null)
+                return;
+
+            // Calculate the screen rectangle for scissoring
+            var screenRect = ScreenRectangle;
+
+            // Create a scissor rectangle based on the Height
+            var scissorRect = new Rectangle(
+                (int)(screenRect.X * WindowManager.ScreenScale.X),
+                (int)(screenRect.Y * WindowManager.ScreenScale.Y),
+                (int)(screenRect.Width * WindowManager.ScreenScale.X),
+                (int)(screenRect.Height * WindowManager.ScreenScale.Y)
+            );
+
+            // Clamp to screen bounds
+            var viewport = game.GraphicsDevice.Viewport;
+            scissorRect.X = MathHelper.Clamp(scissorRect.X, 0, viewport.Width);
+            scissorRect.Y = MathHelper.Clamp(scissorRect.Y, 0, viewport.Height);
+            scissorRect.Width = MathHelper.Clamp(scissorRect.Width, 0, viewport.Width - scissorRect.X);
+            scissorRect.Height = MathHelper.Clamp(scissorRect.Height, 0, viewport.Height - scissorRect.Y);
+
+            if (scissorRect.Width <= 0 || scissorRect.Height <= 0)
+                return;
+
+            var spriteBatch = GameBase.Game.SpriteBatch;
+            var oldScissorRect = game.GraphicsDevice.ScissorRectangle;
+            var oldRasterizerState = game.GraphicsDevice.RasterizerState;
+
+            if (oldRasterizerState.ScissorTestEnable)
+                scissorRect = Rectangle.Intersect(scissorRect, oldScissorRect);
+
+            if (scissorRect.Width <= 0 || scissorRect.Height <= 0)
+                return;
+
+            try { spriteBatch.End(); } catch { }
+
+            game.GraphicsDevice.ScissorRectangle = scissorRect;
+
+            spriteBatch.Begin(
+                SpriteSortMode.Deferred,
+                BlendState.NonPremultiplied,
+                SamplerState.LinearClamp,
+                null,
+                ScissorRasterizer,
+                null,
+                WindowManager.Scale);
+
+            base.Draw(gameTime);
+
+            try { spriteBatch.End(); } catch { }
+
+            game.GraphicsDevice.ScissorRectangle = oldScissorRect;
+
+            // Restore with a clean rasterizer without scissor test,
+            // to avoid leaking scissor state to subsequent sibling draws
+            // (oldRasterizerState could have ScissorTestEnable=true from a previous ScrollContainer).
+            GameBase.DefaultSpriteBatchOptions.Begin();
+            GameBase.DefaultSpriteBatchInUse = true;
         }
 
         /// <inheritdoc />
@@ -70,14 +156,53 @@ namespace Quaver.Shared.Screens.Selection.UI.Playlists
             TimeElapsedUntilInitializationRequest += gameTime.ElapsedGameTime.TotalMilliseconds;
             InitializePlaylists(false);
 
+            // Close Right Click Options if scrolling
+            var deltaY = CurrentY - PreviousY;
+            if (Math.Abs(deltaY) > 1)
+            {
+                var game = (QuaverGame)GameBase.Game;
+                game?.CurrentScreen?.ActiveRightClickOptions?.Close();
+            }
+
             base.Update(gameTime);
+        }
+
+        /// <summary>
+        ///     Returns the height of a playlist slot including spacing/padding.
+        ///     V2: 100px height + 10px spacing = 110px.
+        ///     V1: 97px height (legacy).
+        /// </summary>
+        private int GetPlaylistSlotHeight() => SkinManager.Skin?.UserInterfaceVersion == 2 ? 110 : DrawableMapset.MapsetHeight;
+
+        /// <inheritdoc />
+        public override void RecalculateContainerHeight(bool usePoolCount = false)
+        {
+            if (AvailableItems == null)
+            {
+                base.RecalculateContainerHeight(usePoolCount);
+                return;
+            }
+
+            var count = usePoolCount ? Pool.Count : AvailableItems.Count;
+            var totalHeight = GetPlaylistSlotHeight() * count + PaddingTop + PaddingBottom;
+
+            // V2 optimization: Ensure the content ends exactly at the last playlist panel's edge.
+            if (SkinManager.Skin?.UserInterfaceVersion == 2 && count > 0)
+            {
+                totalHeight = 110 * (count - 1) + 100 + PaddingTop;
+            }
+
+            if (totalHeight > Height)
+                ContentContainer.Height = totalHeight;
+            else
+                ContentContainer.Height = Height;
         }
 
         /// <inheritdoc />
         /// <summary>
         /// </summary>
         /// <returns></returns>
-        protected override float GetSelectedPosition() => (-SelectedIndex.Value + 4) * DrawableMapset.MapsetHeight;
+        protected override float GetSelectedPosition() => (-SelectedIndex.Value + 4) * GetPlaylistSlotHeight();
 
         /// <inheritdoc />
         /// <summary>

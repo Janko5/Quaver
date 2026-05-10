@@ -159,7 +159,7 @@ namespace Quaver.Shared.Screens.Selection.UI.Playlists.Dialogs.Create
         {
             var header = Dialog.Playlist != null ? "Edit Playlist" : "Create New Playlist";
 
-            Header = new SpriteTextPlus(FontManager.GetWobbleFont(Fonts.LatoBlack), header.ToUpper(), 26)
+            Header = new SpriteTextPlus(FontManager.GetWobbleFont(Fonts.InterBold), header.ToUpper(), 26)
             {
                 Parent = this,
                 Alignment = Alignment.TopLeft
@@ -207,7 +207,7 @@ namespace Quaver.Shared.Screens.Selection.UI.Playlists.Dialogs.Create
             };
 
             // ReSharper disable once ObjectCreationAsStatement
-            DragAndDropText = new SpriteTextPlus(FontManager.GetWobbleFont(Fonts.LatoHeavy), "Drag an image into the window...", 24)
+            DragAndDropText = new SpriteTextPlus(FontManager.GetWobbleFont(Fonts.InterBold), "Drag an image into the window...", 24)
             {
                 Parent = Banner,
                 Alignment = Alignment.MidCenter
@@ -220,7 +220,8 @@ namespace Quaver.Shared.Screens.Selection.UI.Playlists.Dialogs.Create
         private void CreateNameTextbox()
         {
             Name = new LabelledTextbox(TextboxWidth, "Name", LabelFontSize, TextboxHeight, TextboxFontSize, LabelSpacing,
-                "What would you like your playlist to be called?", Dialog.Playlist != null ? Dialog.Playlist.Name : "")
+                "What would you like your playlist to be called?", Dialog.Playlist != null ? Dialog.Playlist.Name : "",
+                FontManager.GetWobbleFont(Fonts.InterBold))
             {
                 Parent = Container,
                 Alignment = Alignment.TopCenter,
@@ -240,7 +241,8 @@ namespace Quaver.Shared.Screens.Selection.UI.Playlists.Dialogs.Create
         private void CreateDescriptionTextbox()
         {
             Description = new LabelledTextbox(TextboxWidth, "Description", LabelFontSize, TextboxHeight, TextboxFontSize, LabelSpacing,
-                "Describe your playlist in a few words", Dialog.Playlist != null ? Dialog.Playlist.Description : "")
+                "Describe your playlist in a few words", Dialog.Playlist != null ? Dialog.Playlist.Description : "",
+                FontManager.GetWobbleFont(Fonts.InterBold))
             {
                 Parent = Container,
                 Alignment = Alignment.TopCenter,

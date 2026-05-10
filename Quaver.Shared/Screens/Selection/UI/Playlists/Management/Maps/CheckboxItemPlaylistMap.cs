@@ -75,8 +75,6 @@ namespace Quaver.Shared.Screens.Selection.UI.Playlists.Management.Maps
                 });
             }
 
-            PlaylistManager.InvokePlaylistMapsManagedEvent(Playlist);
-
             Logger.Important($"Changed playlist: {Playlist.Name} state to: {IsSelected} for map: {Map}",
                 LogType.Runtime);
         }
