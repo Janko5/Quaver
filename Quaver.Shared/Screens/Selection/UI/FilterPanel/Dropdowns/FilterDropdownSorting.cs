@@ -24,8 +24,8 @@ namespace Quaver.Shared.Screens.Selection.UI.FilterPanel.Dropdowns
         /// <summary>
         /// </summary>
         /// <param name="availableMapsets"></param>
-        public FilterDropdownSorting(Bindable<List<Mapset>> availableMapsets) : base("SORT BY: ", 22, new Dropdown(GetDropdownItems(),
-            new ScalableVector2(188, 38), 22, ColorHelper.HexToColor($"#ffe76b"), GetSelectedIndex()))
+        public FilterDropdownSorting(Bindable<List<Mapset>> availableMapsets) : base("SORT BY: ", 22, FilterPanelV1Helper.CreateDropdown(GetDropdownItems(),
+            new ScalableVector2(188, 40), 22, ColorHelper.HexToColor($"#ffe76b"), GetSelectedIndex()))
         {
             AvailableMapsets = availableMapsets;
             Dropdown.ItemSelected += OnItemSelected;
@@ -68,7 +68,7 @@ namespace Quaver.Shared.Screens.Selection.UI.FilterPanel.Dropdowns
             if (ConfigManager.SelectOrderMapsetsBy == null)
                 return 0;
 
-            return (int) ConfigManager.SelectOrderMapsetsBy.Value;
+            return (int)ConfigManager.SelectOrderMapsetsBy.Value;
         }
 
         /// <summary>
@@ -80,7 +80,7 @@ namespace Quaver.Shared.Screens.Selection.UI.FilterPanel.Dropdowns
             if (ConfigManager.SelectOrderMapsetsBy == null)
                 return;
 
-            ConfigManager.SelectOrderMapsetsBy.Value = (OrderMapsetsBy) e.Index;
+            ConfigManager.SelectOrderMapsetsBy.Value = (OrderMapsetsBy)e.Index;
         }
     }
 }

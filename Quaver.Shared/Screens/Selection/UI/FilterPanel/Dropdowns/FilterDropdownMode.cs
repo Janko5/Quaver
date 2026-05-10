@@ -23,8 +23,8 @@ namespace Quaver.Shared.Screens.Selection.UI.FilterPanel.Dropdowns
         /// <summary>
         /// </summary>
         /// <param name="availableMapsets"></param>
-        public FilterDropdownMode(Bindable<List<Mapset>> availableMapsets) : base("MODE: ", 22, new Dropdown(GetDropdownItems(),
-            new ScalableVector2(120, 38), 22, ColorHelper.HexToColor($"#55ec49"), GetSelectedIndex()))
+        public FilterDropdownMode(Bindable<List<Mapset>> availableMapsets) : base("MODE: ", 22, FilterPanelV1Helper.CreateDropdown(GetDropdownItems(),
+            new ScalableVector2(120, 40), 22, ColorHelper.HexToColor($"#55ec49"), GetSelectedIndex()))
         {
             AvailableMapsets = availableMapsets;
             Dropdown.ItemSelected += OnItemSelected;
@@ -33,7 +33,8 @@ namespace Quaver.Shared.Screens.Selection.UI.FilterPanel.Dropdowns
         /// <summary>
         /// </summary>
         /// <returns></returns>
-        private static List<string> GetDropdownItems() {
+        private static List<string> GetDropdownItems()
+        {
             var values = new List<string>(){
                 "All"
             };
@@ -51,7 +52,7 @@ namespace Quaver.Shared.Screens.Selection.UI.FilterPanel.Dropdowns
         private static int GetSelectedIndex()
         {
             if (ConfigManager.SelectFilterGameModeBy != null)
-                return (int) ConfigManager.SelectFilterGameModeBy.Value;
+                return (int)ConfigManager.SelectFilterGameModeBy.Value;
 
             return 0;
         }
@@ -65,7 +66,7 @@ namespace Quaver.Shared.Screens.Selection.UI.FilterPanel.Dropdowns
             if (ConfigManager.SelectFilterGameModeBy == null)
                 return;
 
-            ConfigManager.SelectFilterGameModeBy.Value = (GameMode) e.Index;
+            ConfigManager.SelectFilterGameModeBy.Value = (GameMode)e.Index;
         }
     }
 }

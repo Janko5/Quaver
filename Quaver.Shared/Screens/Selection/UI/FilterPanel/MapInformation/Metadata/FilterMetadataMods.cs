@@ -1,4 +1,4 @@
-﻿using Quaver.API.Helpers;
+using Quaver.API.Helpers;
 using Quaver.API.Maps.Processors.Scoring;
 using Quaver.Shared.Database.Judgements;
 using Quaver.Shared.Helpers;

@@ -67,7 +67,7 @@ namespace Quaver.Shared.Screens.Selection.UI.FilterPanel
         /// </summary>
         private void CreateTextCount()
         {
-            TextCount = new SpriteTextPlus(FontManager.GetWobbleFont(Fonts.LatoBlack), "0", 21)
+            TextCount = new SpriteTextPlus(FontManager.GetWobbleFont(Fonts.InterBold), "0", 21)
             {
                 Parent = this,
                 Tint = Colors.MainAccent
@@ -81,7 +81,7 @@ namespace Quaver.Shared.Screens.Selection.UI.FilterPanel
         /// </summary>
         private void CreateTextMapsFound()
         {
-            TextMapsFound = new SpriteTextPlus(FontManager.GetWobbleFont(Fonts.LatoBlack), "Maps Found", 21)
+            TextMapsFound = new SpriteTextPlus(FontManager.GetWobbleFont(Fonts.InterBold), "Maps Found", 21)
             {
                 Parent = this,
                 X = TextCount.Width + TextSpacing

@@ -96,7 +96,7 @@ namespace Quaver.Shared.Screens.Selection.UI.FilterPanel
             {
                 Parent = this,
                 Size = Size,
-                Tint = ColorHelper.HexToColor("#242424"),
+                Tint = ColorHelper.HexToColor("#0F2C44"),
                 Alpha = 0.50f
             };
         }

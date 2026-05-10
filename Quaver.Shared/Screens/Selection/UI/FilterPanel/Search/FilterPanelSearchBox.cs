@@ -18,6 +18,8 @@ using Wobble.Graphics.UI.Form;
 using Wobble.Managers;
 using Wobble.Scheduling;
 
+using Quaver.Shared.Skinning;
+
 namespace Quaver.Shared.Screens.Selection.UI.FilterPanel.Search
 {
     public class FilterPanelSearchBox : Textbox
@@ -61,7 +63,7 @@ namespace Quaver.Shared.Screens.Selection.UI.FilterPanel.Search
         /// <param name="placeHolderText"></param>
         public FilterPanelSearchBox(Bindable<string> currentSearchQuery, Bindable<List<Mapset>> availableMapsets,
             Bindable<bool> isPlayTesting, Bindable<SelectContainerPanel> activeLeftPanel, string placeHolderText)
-            : base(new ScalableVector2(280, 40), FontManager.GetWobbleFont(Fonts.LatoBlack),22, PreviousSearchTerm, placeHolderText)
+            : base(new ScalableVector2(280, 40), FontManager.GetWobbleFont(Fonts.InterBold), 22, PreviousSearchTerm, placeHolderText)
         {
             CurrentSearchQuery = currentSearchQuery;
             AvailableMapsets = availableMapsets;
@@ -91,6 +93,14 @@ namespace Quaver.Shared.Screens.Selection.UI.FilterPanel.Search
             Focused = AlwaysFocused;
 
             HandleSearchIconAnimations(gameTime);
+
+            if (InputText != null)
+            {
+                // When empty: show placeholder in NotActiveColor
+                // When typing: show text in ActiveColor
+                InputText.Tint = string.IsNullOrEmpty(RawText) ? SkinManager.Skin.SearchPlaceholderTextColor : SkinManager.Skin.SearchActiveTextColor;
+            }
+
             base.Update(gameTime);
         }
 
@@ -105,7 +115,8 @@ namespace Quaver.Shared.Screens.Selection.UI.FilterPanel.Search
                 Alignment = Alignment.MidRight,
                 Size = new ScalableVector2(16, 16),
                 X = -10,
-                Image = FontAwesome.Get(FontAwesomeIcon.fa_magnifying_glass)
+                Image = FontAwesome.Get(FontAwesomeIcon.fa_magnifying_glass),
+                Tint = SkinManager.Skin.SearchActiveTextColor
             };
         }
 
@@ -117,7 +128,7 @@ namespace Quaver.Shared.Screens.Selection.UI.FilterPanel.Search
             var target = InputText.Width < Width - 20 - SearchIcon.Width ? 1 : 0;
 
             SearchIcon.Alpha = MathHelper.Lerp(SearchIcon.Alpha, target,
-                (float) Math.Min(gameTime.ElapsedGameTime.TotalMilliseconds / 120, 1));
+                (float)Math.Min(gameTime.ElapsedGameTime.TotalMilliseconds / 120, 1));
         }
 
         /// <summary>

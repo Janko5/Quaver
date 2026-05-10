@@ -3,6 +3,7 @@ using Quaver.API.Helpers;
 using Quaver.Shared.Database.Maps;
 using Quaver.Shared.Helpers;
 using Quaver.Shared.Modifiers;
+using Quaver.Shared.Skinning;
 using Wobble.Bindables;
 using System;
 
@@ -10,7 +11,7 @@ namespace Quaver.Shared.Screens.Selection.UI.FilterPanel.MapInformation.Metadata
 {
     public class FilterMetadataNotesPerSecond : TextKeyValue
     {
-        public FilterMetadataNotesPerSecond() : base("NPS: ", "0", 20, ColorHelper.HexToColor($"#ffe76b"))
+        public FilterMetadataNotesPerSecond() : base("NPS: ", "0", SkinManager.Skin?.UserInterfaceVersion >= 2f ? 24 : 20, ColorHelper.HexToColor($"#ffe76b"))
         {
             if (MapManager.Selected.Value != null)
                 Value.Text = $"{GetNotesPerSecond()}";

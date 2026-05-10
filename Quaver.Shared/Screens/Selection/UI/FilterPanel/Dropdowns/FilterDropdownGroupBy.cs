@@ -26,8 +26,8 @@ namespace Quaver.Shared.Screens.Selection.UI.FilterPanel.Dropdowns
         /// <summary>
         /// </summary>
         /// <param name="availableMapsets"></param>
-        public FilterDropdownGroupBy(Bindable<List<Mapset>> availableMapsets) : base("GROUP BY: ", 22, new Dropdown(GetDropdownItems(),
-            new ScalableVector2(125, 38), 22, ColorHelper.HexToColor($"#10C8F6"), GetSelectedIndex()))
+        public FilterDropdownGroupBy(Bindable<List<Mapset>> availableMapsets) : base("GROUP BY: ", 22, FilterPanelV1Helper.CreateDropdown(GetDropdownItems(),
+            new ScalableVector2(125, 40), 22, ColorHelper.HexToColor($"#10C8F6"), GetSelectedIndex()))
         {
             AvailableMapsets = availableMapsets;
             Dropdown.ItemSelected += OnItemSelected;
@@ -62,7 +62,7 @@ namespace Quaver.Shared.Screens.Selection.UI.FilterPanel.Dropdowns
             if (ConfigManager.SelectGroupMapsetsBy == null)
                 return 0;
 
-            return (int) ConfigManager.SelectGroupMapsetsBy.Value;
+            return (int)ConfigManager.SelectGroupMapsetsBy.Value;
         }
 
         /// <summary>
@@ -74,7 +74,7 @@ namespace Quaver.Shared.Screens.Selection.UI.FilterPanel.Dropdowns
             if (ConfigManager.SelectGroupMapsetsBy == null)
                 return;
 
-            ConfigManager.SelectGroupMapsetsBy.Value = (GroupMapsetsBy) e.Index;
+            ConfigManager.SelectGroupMapsetsBy.Value = (GroupMapsetsBy)e.Index;
         }
 
 
@@ -87,8 +87,8 @@ namespace Quaver.Shared.Screens.Selection.UI.FilterPanel.Dropdowns
         /// <exception cref="NotImplementedException"></exception>
         private void OnGroupingChanged(object sender, BindableValueChangedEventArgs<GroupMapsetsBy> e)
         {
-            Dropdown.SelectedIndex = (int) e.Value;
-            Dropdown.SelectedText.Text = Dropdown.Options[(int) e.Value];
+            Dropdown.SelectedIndex = (int)e.Value;
+            Dropdown.SelectedText.Text = Dropdown.Options[(int)e.Value];
             Dropdown.Close();
         }
     }
