@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Quaver.Shared.Assets;
+using Quaver.Shared.Config;
 using Quaver.Shared.Graphics;
 using Quaver.Shared.Graphics.Menu.Border;
 using Quaver.Shared.Helpers;
@@ -11,6 +12,7 @@ using Quaver.Shared.Screens.Main.UI.News;
 using Quaver.Shared.Screens.Main.UI.Tips;
 using Quaver.Shared.Screens.Main.UI.Visualizer;
 using Quaver.Shared.Screens.Menu.UI.Visualizer;
+using Quaver.Shared.Screens.Visualizer;
 using Quaver.Shared.Screens.Music;
 using Quaver.Shared.Screens.Options;
 using Quaver.Shared.Skinning;
@@ -85,6 +87,7 @@ namespace Quaver.Shared.Screens.Main
             CreateFooter();
 
             screen.ScreenExiting += OnScreenExiting;
+            ConfigManager.BackgroundBrightness.ValueChanged += OnBackgroundBrightnessChanged;
         }
 
         /// <inheritdoc />
@@ -106,17 +109,36 @@ namespace Quaver.Shared.Screens.Main
         /// <inheritdoc />
         /// <summary>
         /// </summary>
-        public override void Destroy() => Container?.Destroy();
+        public override void Destroy()
+        {
+            Container?.Destroy();
+            ConfigManager.BackgroundBrightness.ValueChanged -= OnBackgroundBrightnessChanged;
+        }
 
-        /// <summary>
-        ///     Creates <see cref="Background"/>
-        /// </summary>
         private void CreateBackground()
         {
-            Background = new BackgroundImage(SkinManager.Skin?.MainMenu?.Background ?? UserInterface.TrianglesWallpaper, 0,
-                false)
+            var hasSkinUniversal = SkinManager.Skin != null && System.IO.File.Exists(System.IO.Path.Combine(SkinManager.Skin.Dir, "Universal", "universal-background.png"));
+            var hasSkinMenu = SkinManager.Skin != null && System.IO.File.Exists(System.IO.Path.Combine(SkinManager.Skin.Dir, "MainMenu", "menu-background.png"));
+
+            Microsoft.Xna.Framework.Graphics.Texture2D tex = null;
+            if (hasSkinMenu)
+                tex = SkinManager.Skin?.MainMenu?.Background;
+            else if (hasSkinUniversal)
+                tex = SkinManager.Skin?.Background;
+            else
+                tex = UserInterface.MenuBackground ?? UserInterface.UniversalBackground;
+
+            Background = new BackgroundImage(tex, 100 - ConfigManager.BackgroundBrightness.Value, false)
             { Parent = Container };
         }
+
+        /// <summary>
+        ///     Fired when the background brightness is changed.
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void OnBackgroundBrightnessChanged(object sender, Wobble.Bindables.BindableValueChangedEventArgs<int> e)
+            => Background?.BrightnessSprite.FadeTo((100 - e.Value) / 100f, Easing.Linear, 250);
 
         /// <summary>
         ///     Creates <see cref="MenuLogoBackground"/>
@@ -173,7 +195,6 @@ namespace Quaver.Shared.Screens.Main
         /// </summary>
         private void CreateNavigationButtons()
         {
-            var quitColor = ColorHelper.HexToColor("#F9645D");
             var screen = Screen as MainMenuScreen;
 
             NavigationButtonContainer = new NavigationButtonContainer(new List<NavigationButton>()
@@ -193,8 +214,8 @@ namespace Quaver.Shared.Screens.Main
                 new NavigationButton(FontAwesome.Get(FontAwesomeIcon.fa_power_button_off), "Quit Game",
                     (o, e) => DialogManager.Show(new QuitDialog()))
                 {
-                    Icon = { Tint = SkinManager.Skin?.MainMenu?.NavigationQuitButtonTextColor ?? quitColor },
-                    Name = { Tint = SkinManager.Skin?.MainMenu?.NavigationQuitButtonTextColor ?? quitColor }
+                    Icon = { Tint = SkinManager.Skin.MainMenu.NavigationQuitButtonTextColor },
+                    Name = { Tint = SkinManager.Skin.MainMenu.NavigationQuitButtonTextColor }
                 }
             })
             {
@@ -257,20 +278,56 @@ namespace Quaver.Shared.Screens.Main
         /// </summary>
         private void CreateAudioVisualizer()
         {
-            var visBottom = new MenuAudioVisualizer((int)WindowManager.Width, 750, 220, 3, 8)
-            {
-                Parent = Container,
-                Y = -MenuBorder.HEIGHT,
-                Alignment = Alignment.BotRight,
-            };
+            var visualizerType = SkinManager.Skin.MusicVisualizer.MusicVisualizerType;
 
-            visBottom.Bars.ForEach(bar =>
+            if (visualizerType == 0)
+                return;
+
+            if (visualizerType == 2)
             {
-                bar.Alignment = Alignment.BotRight;
-                bar.X = -bar.X;
-                bar.Alpha = SkinManager.Skin?.MainMenu?.AudioVisualizerOpacity ?? 0.85f;
-                bar.Tint = SkinManager.Skin?.MainMenu?.AudioVisualizerColor ?? Colors.MainBlue;
-            });
+                // Dot-matrix visualizer
+                // ReSharper disable once ObjectCreationAsStatement
+                new DotMatrixAudioVisualizer((int)WindowManager.Width, 375, 4, 2)
+                {
+                    Parent = Container,
+                    Y = -MenuBorder.HEIGHT,
+                    Alignment = Alignment.BotRight,
+                };
+            }
+            else if (visualizerType == 3)
+            {
+                // Wave/area visualizer
+                // ReSharper disable once ObjectCreationAsStatement
+                new WaveAudioVisualizer((int)WindowManager.Width, 375, 8)
+                {
+                    Parent = Container,
+                    Y = -MenuBorder.HEIGHT,
+                    Alignment = Alignment.BotRight,
+                };
+            }
+            else
+            {
+                // Classic bar visualizer
+                var numBars = (int)WindowManager.Width / (3 + 4);
+                var visBottom = new MenuAudioVisualizer((int)WindowManager.Width, 375, numBars, 3, 4)
+                {
+                    Parent = Container,
+                    Y = -MenuBorder.HEIGHT,
+                    Alignment = Alignment.BotRight,
+                };
+
+                visBottom.Bars.ForEach(bar =>
+                {
+                    bar.Alignment = Alignment.BotRight;
+                    bar.X = -bar.X;
+                    bar.Alpha = SkinManager.Skin.MusicVisualizer.MusicVisualizerColor.A / 255f;
+                    bar.Tint = SkinManager.Skin.MusicVisualizer.MusicVisualizerColor;
+                
+                    // If we are using the new MusicVisualizer skin section, we want to use the alpha from the color directly
+                    if (SkinManager.Skin?.MusicVisualizer != null && SkinManager.Skin.Config != null && SkinManager.Skin.Config.Sections.ContainsSection("MusicVisualizer"))
+                        bar.Alpha = 1.0f;
+                });
+            }
         }
 
         /// <summary>

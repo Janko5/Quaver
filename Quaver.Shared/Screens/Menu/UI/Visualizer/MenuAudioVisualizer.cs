@@ -12,6 +12,7 @@ using Microsoft.Xna.Framework;
 using Quaver.Shared.Audio;
 using Quaver.Shared.Config;
 using Quaver.Shared.Graphics;
+using Quaver.Shared.Skinning;
 using Wobble.Graphics;
 using Wobble.Graphics.Animations;
 using Wobble.Graphics.Sprites;
@@ -40,7 +41,7 @@ namespace Quaver.Shared.Screens.Menu.UI.Visualizer
         /// </summary>
         private readonly TimeSpan barInterpolateInterval = TimeSpan.FromMilliseconds(50);
 
-        private readonly float[]  spectrumData = new float[2048];
+        private readonly float[] spectrumData = new float[2048];
 
         /// <inheritdoc />
         ///   <summary>
@@ -64,10 +65,10 @@ namespace Quaver.Shared.Screens.Menu.UI.Visualizer
                 {
                     Parent = this,
                     Alignment = Alignment.BotLeft,
-                    Tint = Colors.MainAccentInactive,
+                    Tint = SkinManager.Skin.MusicVisualizer.MusicVisualizerColor,
                     Width = barWidth,
                     X = barWidth * i + i * spacing,
-                    Alpha = 0.20f
+                    Alpha = SkinManager.Skin?.MusicVisualizer != null && SkinManager.Skin.Config != null && SkinManager.Skin.Config.Sections.ContainsSection("MusicVisualizer") ? 1.0f : 0.20f
                 };
 
                 Bars.Add(bar);
@@ -117,11 +118,14 @@ namespace Quaver.Shared.Screens.Menu.UI.Visualizer
             else
                 Array.Clear(spectrumData);
 
+            var center = Bars.Count / 2;
+
             for (var i = 0; i < Bars.Count; i++)
             {
                 var bar = Bars[i];
 
-                var targetHeight = spectrumData[i] * MaxBarHeight;
+                var spectrumIndex = Math.Abs(i - center);
+                var targetHeight = MathHelper.Clamp(spectrumData[spectrumIndex] * MaxBarHeight * 1.75f, 0, MaxBarHeight);
 
                 bar.Visible = targetHeight > 1f;
 

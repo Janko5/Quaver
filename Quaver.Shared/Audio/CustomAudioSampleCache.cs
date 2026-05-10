@@ -5,6 +5,7 @@
  * Copyright (c) Swan & The Quaver Team <support@quavergame.com>.
 */
 
+using System;
 using System.Collections.Generic;
 using System.IO;
 using Quaver.Shared.Config;
@@ -74,16 +75,20 @@ namespace Quaver.Shared.Audio
                 var found = false;
                 foreach (var ext in extensions)
                 {
+                    var path = MapManager.GetCustomAudioSamplePath(map, pathWithoutExt + '.' + ext);
+
+                    if (!File.Exists(path))
+                        continue;
+
                     try
                     {
-                        Samples.Add(new GameplayAudioSample(new AudioSample(MapManager.GetCustomAudioSamplePath(
-                            map, pathWithoutExt + '.' + ext)), info.UnaffectedByRate));
+                        Samples.Add(new GameplayAudioSample(new AudioSample(path), info.UnaffectedByRate));
                         found = true;
                         break;
                     }
-                    catch (FileNotFoundException)
+                    catch (Exception)
                     {
-                        // Ignored.
+                        // Fallback if the file exists but the stream is corrupted or unreadable.
                     }
                 }
 

@@ -13,15 +13,16 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
+using SixLabors.ImageSharp.Processing;
 using Quaver.Shared.Assets;
 using Quaver.Shared.Config;
 using Quaver.Shared.Database.Maps;
 using Quaver.Shared.Database.Playlists;
 using Quaver.Shared.Scheduling;
 using Quaver.Shared.Skinning;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats;
-using SixLabors.ImageSharp.Processing;
+
 using Wobble;
 using Wobble.Assets;
 using Wobble.Graphics;
@@ -82,6 +83,10 @@ namespace Quaver.Shared.Graphics.Backgrounds
         /// <summary>
         /// </summary>
         private static Texture2D DefaultBanner => UserInterface.DefaultBanner;
+
+        /// <summary>
+        /// </summary>
+        private static Texture2D PlaylistDefaultBanner => UserInterface.PlaylistDefaultBanner;
 
         /// <summary>
         ///     Event invoked when a new background has been loaded
@@ -278,6 +283,7 @@ namespace Quaver.Shared.Graphics.Backgrounds
                 catch (Exception e)
                 {
                     mapTexture = DefaultBanner;
+                    Logger.Error($"Failed to load mapset banner from path: {path}. Mapset: {mapset.Artist} - {mapset.Title}", LogType.Runtime);
                     Logger.Error(e, LogType.Runtime);
                 }
 
@@ -331,7 +337,7 @@ namespace Quaver.Shared.Graphics.Backgrounds
                 }
 
                 // Give map backgrounds second priority
-                if (playlist.PlaylistGame == MapGame.Etterna || !File.Exists(path))
+                if (playlist.PlaylistGame == MapGame.Etterna)
                 {
                     if (playlist.Maps.Count != 0)
                     {
@@ -344,16 +350,37 @@ namespace Quaver.Shared.Graphics.Backgrounds
 
                 try
                 {
-                    mapTexture = File.Exists(path) ? AssetLoader.LoadTexture2DFromFile(path) : DefaultBanner;
+                    if (File.Exists(path))
+                    {
+                        // Resizing logic for better quality downscaling
+                        using (var image = Image.Load<Rgba32>(path))
+                        {
+                            // Resize to 128x128 for better quality on small displays
+                            // Use a size slightly larger than typical display size (80px) to allow for some scaling flexibility
+                            image.Mutate(x => x.Resize(128, 128));
+
+                            using (var ms = new MemoryStream())
+                            {
+                                image.SaveAsPng(ms);
+                                ms.Position = 0;
+                                mapTexture = AssetLoader.LoadTexture2D(ms);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        mapTexture = PlaylistDefaultBanner;
+                    }
                 }
                 catch (Exception e)
                 {
-                    mapTexture = DefaultBanner;
+                    mapTexture = PlaylistDefaultBanner;
+                    Logger.Error($"Failed to load playlist banner from path: {path}. Playlist: {playlist.Name} (#{playlist.Id})", LogType.Runtime);
                     Logger.Error(e, LogType.Runtime);
                 }
 
                 // The banner is the default, so there's no need to cache it to a RenderTarget
-                if (mapTexture == DefaultBanner || bannerExists)
+                if (mapTexture == PlaylistDefaultBanner || bannerExists)
                 {
                     if (!PlaylistBanners.ContainsKey(playlist.Id.ToString()))
                         PlaylistBanners.Add(playlist.Id.ToString(), mapTexture);
@@ -372,37 +399,55 @@ namespace Quaver.Shared.Graphics.Backgrounds
         }
 
         /// <summary>
-        ///     Makes and creates a banner to use for song select/playlists
+        ///     Makes and creates a banner to use for song select/playlists.
+        ///     Scales the background to the banner width (preserving aspect ratio)
+        ///     then crops a horizontal strip from the vertical center.
         /// </summary>
         /// <param name="path"></param>
         /// <param name="mapset"></param>
         /// <param name="playlist"></param>
-        private static void CreateBanner(string path, Mapset mapset = null, Playlist playlist = null)
+        private static void CreateBanner(string path, Mapset? mapset = null, Playlist? playlist = null)
         {
             if (mapset == null && playlist == null || mapset != null && playlist != null)
                 throw new InvalidOperationException();
 
+            var skinSelect = SkinManager.Skin.SongSelect;
+            var bannerWidth = (int)skinSelect.MapsetPanelBannerSize.X.Value;
+            var bannerHeight = (int)skinSelect.MapsetPanelBannerSize.Y.Value;
+
             using (var outStream = new MemoryStream())
-            using (var image = Image.Load(File.OpenRead(path), out var format))
             {
-                image.Mutate(i => i.Resize(448, 252).Crop(new SixLabors.ImageSharp.Rectangle(0, 20, 421, 82)));
-                image.Save(outStream, format);
-
-                var img = Texture2D.FromStream(GameBase.Game.GraphicsDevice, outStream);
-
-                if (mapset != null)
+                using (var image = Image.Load(File.OpenRead(path), out var format))
                 {
-                    if (!MapsetBanners.ContainsKey(mapset.Directory))
-                        MapsetBanners.Add(mapset.Directory, img);
+                    // Scale to banner width preserving aspect ratio
+                    var scale = (float)bannerWidth / image.Width;
+                    var scaledHeight = Math.Max(1, (int)(image.Height * scale));
+                    image.Mutate(i => i.Resize(bannerWidth, scaledHeight));
 
-                    BannerLoaded?.Invoke(typeof(BackgroundHelper), new BannerLoadedEventArgs(mapset, img));
-                }
-                else
-                {
-                    if (!PlaylistBanners.ContainsKey(playlist.Id.ToString()))
-                        PlaylistBanners.Add(playlist.Id.ToString(), img);
+                    // Center-crop: take a horizontal strip from the vertical center
+                    var cropHeight = Math.Min(bannerHeight, scaledHeight);
+                    var cropY = Math.Max(0, (scaledHeight - cropHeight) / 2);
+                    image.Mutate(i => i.Crop(new SixLabors.ImageSharp.Rectangle(0, cropY, bannerWidth, cropHeight)));
 
-                    BannerLoaded?.Invoke(typeof(BackgroundHelper), new BannerLoadedEventArgs(playlist, img));
+                    image.Save(outStream, format);
+
+                    outStream.Position = 0;
+                    var img = Texture2D.FromStream(GameBase.Game.GraphicsDevice, outStream);
+
+                    if (mapset != null)
+                    {
+                        if (!MapsetBanners.ContainsKey(mapset.Directory))
+                            MapsetBanners.Add(mapset.Directory, img);
+
+                        BannerLoaded?.Invoke(typeof(BackgroundHelper), new BannerLoadedEventArgs(mapset, img));
+                    }
+                    else
+                    {
+                        if (!PlaylistBanners.ContainsKey(playlist!.Id.ToString()))
+                            PlaylistBanners.Add(playlist.Id.ToString(), img);
+
+                        BannerLoaded?.Invoke(typeof(BackgroundHelper), new BannerLoadedEventArgs(playlist, img));
+                    }
                 }
             }
         }

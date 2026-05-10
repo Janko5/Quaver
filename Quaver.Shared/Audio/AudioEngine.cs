@@ -17,9 +17,11 @@ using Quaver.Shared.Database.Maps;
 using Quaver.Shared.Modifiers;
 using Quaver.Shared.Scheduling;
 using Wobble;
+using ManagedBass;
 using Wobble.Audio;
 using Wobble.Audio.Tracks;
 using Wobble.Graphics;
+using Wobble.Logging;
 
 namespace Quaver.Shared.Audio
 {
@@ -75,8 +77,17 @@ namespace Quaver.Shared.Audio
             catch (OperationCanceledException)
             {
             }
-            catch (Exception)
+            catch (Exception e)
             {
+                if (e is AudioEngineException { BassError: Errors.FileOpen })
+                {
+                    Logger.Error($"Audio file missing or could not be opened: {MapManager.CurrentAudioPath}. Falling back to virtual track.", LogType.Runtime);
+                }
+                else
+                {
+                    Logger.Error($"Failed to load current track: {MapManager.CurrentAudioPath}. {(e is AudioEngineException ? e.Message : e.ToString())}. Falling back to virtual track.", LogType.Runtime);
+                }
+
                 if (Track is { IsDisposed: false })
                     Track.Dispose();
 
@@ -104,15 +115,17 @@ namespace Quaver.Shared.Audio
                     LoadCurrentTrack(true);
                 }
 
-                if (Track == null)
+                var track = Track;
+                if (track == null || track.IsDisposed)
                     return;
 
-                lock (Track)
+                lock (track)
                 {
-                    Track?.Seek(MapManager.Selected.Value.AudioPreviewTime);
+                    var seekTime = (int)Math.Clamp(MapManager.Selected.Value.AudioPreviewTime, 0, (float)track.Length);
+                    track.Seek(seekTime);
 
-                    if (!Track.IsPlaying)
-                        Track?.Play();
+                    if (!track.IsPlaying)
+                        track.Play();
                 }
             }
             catch (Exception)
@@ -197,8 +210,17 @@ namespace Quaver.Shared.Audio
             {
                 track = new AudioTrack(MapManager.GetAudioPath(map), false, false);
             }
-            catch (Exception)
+            catch (Exception e)
             {
+                if (e is AudioEngineException { BassError: Errors.FileOpen })
+                {
+                    Logger.Error($"Audio file missing or could not be opened: {MapManager.GetAudioPath(map)}. Falling back to virtual track.", LogType.Runtime);
+                }
+                else
+                {
+                    Logger.Error($"Failed to load map audio track: {MapManager.GetAudioPath(map)}. {(e is AudioEngineException ? e.Message : e.ToString())}. Falling back to virtual track.", LogType.Runtime);
+                }
+
                 track = new AudioTrackVirtual(map.SongLength + 5000);
             }
 

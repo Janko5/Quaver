@@ -53,6 +53,8 @@ namespace Quaver.Shared.Screens.Main
         private bool FlaggedForOsuImport { get; set; }
 
         private CheatCodeTheater TheaterCheat { get; set; }
+        private CheatCodeParticle ParticleCheat { get; set; }
+        private CheatCodeVisualizer VisualizerCheat { get; set; }
 
         /// <summary>
         /// </summary>
@@ -66,6 +68,8 @@ namespace Quaver.Shared.Screens.Main
             OriginalAutoLoadOsuBeatmapsValue = ConfigManager.AutoLoadOsuBeatmaps.Value;
             ConfigManager.AutoLoadOsuBeatmaps.ValueChanged += OnAutoLoadOsuBeatmapsChanged;
             TheaterCheat = new CheatCodeTheater();
+            ParticleCheat = new CheatCodeParticle();
+            VisualizerCheat = new CheatCodeVisualizer();
 
             if (AudioEngine.MeasuredAudioStartDelay == 0)
                 AudioEngine.MeasureAudioStartDelay();
@@ -111,6 +115,8 @@ namespace Quaver.Shared.Screens.Main
         {
             ConfigManager.AutoLoadOsuBeatmaps.ValueChanged -= OnAutoLoadOsuBeatmapsChanged;
             TheaterCheat.Destroy();
+            ParticleCheat.Destroy();
+            VisualizerCheat.Destroy();
             base.Destroy();
         }
 
@@ -129,6 +135,8 @@ namespace Quaver.Shared.Screens.Main
             HandleKeyPressEscape();
             HandleKeyPressF5();
             TheaterCheat.Update(gameTime);
+            ParticleCheat.Update(gameTime);
+            VisualizerCheat.Update(gameTime);
         }
 
         /// <summary>

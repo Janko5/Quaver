@@ -26,6 +26,13 @@ namespace Quaver.Shared.Helpers.Input
         {
             foreach (var key in KeyboardManager.CurrentState.GetPressedKeys())
             {
+                if (key == Keys.LeftShift || key == Keys.RightShift ||
+                    key == Keys.LeftControl || key == Keys.RightControl ||
+                    key == Keys.LeftAlt || key == Keys.RightAlt)
+                {
+                    continue;
+                }
+
                 if (Index >= Combination.Length)
                 {
                     Index = 0;
