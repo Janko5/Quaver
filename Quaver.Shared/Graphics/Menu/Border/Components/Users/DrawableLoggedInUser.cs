@@ -95,8 +95,8 @@ namespace Quaver.Shared.Graphics.Menu.Border.Components.Users
         /// <param name="gameTime"></param>
         public override void Update(GameTime gameTime)
         {
-            var hoveredColor = SkinManager.Skin?.MenuBorder?.ButtonTextHoveredColor ?? Colors.MainAccent;
-            var unhoveredColor = SkinManager.Skin?.MenuBorder?.ButtonTextColor ?? Color.White;
+            var hoveredColor = SkinManager.Skin.MenuBorder.ButtonTextHoveredColor;
+            var unhoveredColor = SkinManager.Skin.MenuBorder.ButtonTextColor;
 
             var color = Button.IsHovered ? hoveredColor : unhoveredColor;
             Caret.FadeToColor(color, gameTime.ElapsedGameTime.TotalMilliseconds, 30);

@@ -2,6 +2,7 @@ using System;
 using Microsoft.Xna.Framework;
 using Quaver.Shared.Assets;
 using Quaver.Shared.Helpers;
+using Quaver.Shared.Skinning;
 using Wobble;
 using Wobble.Graphics;
 using Wobble.Graphics.Sprites;
@@ -54,32 +55,38 @@ namespace Quaver.Shared.Graphics.Menu.Border.Components
 
         /// <summary>
         /// </summary>
-        public DrawableSessionTime() : base(UserInterface.DropdownClosed)
+        public DrawableSessionTime() : base(SkinManager.Skin?.MenuBorder?.InfoBackground ?? UserInterface.MenuBorderInfoBackground)
         {
-            Size = new ScalableVector2(100, 26);
-            Tint = ColorHelper.HexToColor($"#363636");
+            Size = new ScalableVector2(100, 22);
+
+            if (SkinManager.Skin?.UserInterfaceVersion >= 2f)
+                Tint = SkinManager.Skin.MenuBorder.SquareButtonNotActiveColor;
+            else
+                Tint = ColorHelper.HexToColor($"#363636");
 
             Clock = TimeSpan.FromMilliseconds(GameBase.Game.TimeRunning);
 
-            Time = new SpriteTextPlus(FontManager.GetWobbleFont(Fonts.LatoHeavy), $"{Clock.Hours:00}:{Clock.Minutes:00}:{Clock.Seconds:00}", 19)
+            Time = new SpriteTextPlus(FontManager.GetWobbleFont(Fonts.InterBold), $"{Clock.Hours:00}:{Clock.Minutes:00}:{Clock.Seconds:00}", 17)
             {
                 Parent = this,
                 Alignment = Alignment.MidCenter,
-                Y = 1,
+                Y = 0,
+                Tint = SkinManager.Skin.MenuBorder.SquareButtonContentColor
             };
 
             Tooltip = new Tooltip($"This displays how long the game has been running. Be sure to take breaks often!",
-                Colors.MainAccent) {DestroyIfParentIsNull = false};
+                Colors.MainAccent)
+            { DestroyIfParentIsNull = false };
 
             Hovered += (sender, args) =>
             {
-                var game = (QuaverGame) GameBase.Game;
+                var game = (QuaverGame)GameBase.Game;
                 game.CurrentScreen?.ActivateTooltip(Tooltip);
             };
 
             LeftHover += (sender, args) =>
             {
-                var game = (QuaverGame) GameBase.Game;
+                var game = (QuaverGame)GameBase.Game;
                 game.CurrentScreen?.DeactivateTooltip();
             };
         }

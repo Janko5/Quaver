@@ -20,31 +20,31 @@ namespace Quaver.Shared.Graphics.Menu.Border
 
         /// <summary>
         /// </summary>
-        public static int HEIGHT { get; } = 56;
+        public static int HEIGHT => SkinManager.Skin?.UserInterfaceVersion >= 2.0f ? 70 : 56;
 
         /// <summary>
         ///     The line displayed at the top of the footer
         /// </summary>
-        public Sprite ForegroundLine { get; private set; }
+        public Sprite ForegroundLine { get; private set; } = null!;
 
         /// <summary>
         ///     The line that animates within <see cref="ForegroundLine"/>
         /// </summary>
-        public Sprite AnimatedLine { get; private set; }
+        public Sprite AnimatedLine { get; private set; } = null!;
 
         /// <summary>
         ///     The items that are aligned from left to right of the footer
         /// </summary>
-        protected List<Drawable> LeftAlignedItems { get; }
+        protected List<Drawable>? LeftAlignedItems { get; set; }
 
         /// <summary>
         ///     The items that are aligned from right to left of the footer
         /// </summary>
-        protected List<Drawable> RightAlignedItems { get; }
+        protected List<Drawable>? RightAlignedItems { get; set; }
 
         /// <summary>
         /// </summary>
-        public MenuBorder(MenuBorderType type, List<Drawable> leftAligned = null, List<Drawable> rightAligned = null)
+        public MenuBorder(MenuBorderType type, List<Drawable>? leftAligned = null, List<Drawable>? rightAligned = null)
         {
             Type = type;
 
@@ -55,7 +55,7 @@ namespace Quaver.Shared.Graphics.Menu.Border
 
             if (type == MenuBorderType.Footer)
             {
-                Image = SkinManager.Skin?.MenuBorder?.BackgroundFooter ?? SkinManager.Skin?.MenuBorder?.Background ?? UserInterface.MenuBorderBackground;
+                Image = SkinManager.Skin?.MenuBorder?.BackgroundFooter ?? SkinManager.Skin?.MenuBorder?.Background ?? UserInterface.MenuBorderBackgroundFooter;
             }
             else
             {
@@ -77,6 +77,8 @@ namespace Quaver.Shared.Graphics.Menu.Border
         {
             PerformLineAnimations();
             base.Update(gameTime);
+            AlignLeftItems();
+            AlignRightItems();
         }
 
         /// <summary>
@@ -89,7 +91,9 @@ namespace Quaver.Shared.Graphics.Menu.Border
                 Parent = this,
                 Size = new ScalableVector2(Width, 2),
                 Alignment = Type == MenuBorderType.Header ? Alignment.BotLeft : Alignment.TopLeft,
-                Tint = SkinManager.Skin?.MenuBorder?.BackgroundLineColor ?? Colors.MainBlue
+                Tint = SkinManager.Skin.MenuBorder.BackgroundLineColor,
+                // Hide both background and animated line when MenuBorderLine = False
+                Visible = SkinManager.Skin.MenuBorder.ShowLine
             };
         }
 
@@ -102,7 +106,7 @@ namespace Quaver.Shared.Graphics.Menu.Border
             {
                 Parent = ForegroundLine,
                 Size = new ScalableVector2(150, 2),
-                Tint = SkinManager.Skin?.MenuBorder?.ForegroundLineColor ?? Color.White,
+                Tint = SkinManager.Skin.MenuBorder.ForegroundLineColor,
             };
 
             if (Type == MenuBorderType.Header)
@@ -123,7 +127,7 @@ namespace Quaver.Shared.Graphics.Menu.Border
         /// <summary>
         ///     Aligns the drawables from right to left
         /// </summary>
-        protected void AlignRightItems()
+        public void AlignRightItems()
         {
             if (RightAlignedItems == null || RightAlignedItems.Count == 0)
                 return;
@@ -144,21 +148,28 @@ namespace Quaver.Shared.Graphics.Menu.Border
 
                 item.Parent = this;
 
-                item.Y = item is IMenuBorderItem borderItem && borderItem.UseCustomPaddingY ? borderItem.CustomPaddingY : 0;
+                item.Y = (int)(item is IMenuBorderItem borderItem && borderItem.UseCustomPaddingY ? borderItem.CustomPaddingY : 0);
 
                 if (item.Y == 0 && Type == MenuBorderType.Footer)
                     item.Y = 2;
 
                 item.Alignment = direction == AlignmentDirection.LeftToRight ? Alignment.MidLeft : Alignment.MidRight;
 
-                const int padding = 25;
-                var spacing = item is IMenuBorderItem b && b.UseCustomPaddingX ? b.CustomPaddingX : 60;
+                var padding = SkinManager.Skin?.UserInterfaceVersion >= 2.0f ? 20 : 25;
+                var spacing = item is IMenuBorderItem b && b.UseCustomPaddingX ? b.CustomPaddingX : (SkinManager.Skin?.UserInterfaceVersion >= 2.0f ? 60 : 40);
 
                 if (i == 0)
-                    item.X = direction == AlignmentDirection.LeftToRight ? padding : -padding;
+                {
+                    var p = item is IMenuBorderItem b2 && b2.UseCustomPaddingX ? b2.CustomPaddingX : padding;
+                    item.X = (int)(direction == AlignmentDirection.LeftToRight ? p : -p);
+                }
                 else
-                    item.X = direction == AlignmentDirection.LeftToRight ? items[i - 1].X + items[i - 1].Width + spacing
-                        : items[i - 1].X - items[i - 1].Width - spacing;
+                {
+                    var prev = items[i - 1];
+                    item.X = (int)(direction == AlignmentDirection.LeftToRight
+                        ? prev.X + prev.Width + spacing
+                        : prev.X - prev.Width - spacing);
+                }
             }
         }
 

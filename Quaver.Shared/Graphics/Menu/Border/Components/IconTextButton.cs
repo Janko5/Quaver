@@ -26,7 +26,12 @@ namespace Quaver.Shared.Graphics.Menu.Border.Components
         /// <summary>
         ///     The spacing between the icon and text
         /// </summary>
-        private const int Spacing = 6;
+        public int Spacing { get; set; } = SkinManager.Skin?.UserInterfaceVersion >= 2f ? 10 : 6;
+
+        /// <summary>
+        ///     Function that determines if the button should be colored as active.
+        /// </summary>
+        public Func<bool>? IsActiveFunc { get; set; }
 
         /// <summary>
         ///     The color when the button isn't hovered
@@ -43,6 +48,11 @@ namespace Quaver.Shared.Graphics.Menu.Border.Components
         /// </summary>
         public bool SetTextTint { get; set; } = true;
 
+        /// <summary>
+        ///     If the text should be forced to uppercase
+        /// </summary>
+        public bool UppercaseText { get; set; } = true;
+
         /// <inheritdoc />
         /// <summary>
         /// </summary>
@@ -52,11 +62,12 @@ namespace Quaver.Shared.Graphics.Menu.Border.Components
         /// <param name="onClick"></param>
         /// <param name="baseColor"></param>
         /// <param name="hoveredColor"></param>
-        public IconTextButton(Texture2D icon, WobbleFontStore font, string text, EventHandler onClick = null, Color? baseColor = null, Color? hoveredColor = null)
+        /// <param name="textSize"></param>
+        public IconTextButton(Texture2D icon, WobbleFontStore font, string text, EventHandler onClick = null, Color? baseColor = null, Color? hoveredColor = null, int textSize = 20)
             : base(WobbleAssets.WhiteBox, onClick)
         {
-            BaseColor = SkinManager.Skin?.MenuBorder?.ButtonTextColor ?? baseColor ?? Color.White;
-            HoveredColor = SkinManager.Skin?.MenuBorder?.ButtonTextHoveredColor ?? hoveredColor ?? Colors.MainAccent;
+            BaseColor = SkinManager.Skin.MenuBorder.ButtonTextColor;
+            HoveredColor = SkinManager.Skin.MenuBorder.ButtonTextHoveredColor;
 
             Icon = new Sprite
             {
@@ -67,7 +78,7 @@ namespace Quaver.Shared.Graphics.Menu.Border.Components
                 Tint = BaseColor
             };
 
-            Text = new SpriteTextPlus(font, text.ToUpper(), 20)
+            Text = new SpriteTextPlus(font, UppercaseText ? text.ToUpper() : text, textSize)
             {
                 Parent = Icon,
                 Alignment = Alignment.MidLeft,
@@ -78,7 +89,13 @@ namespace Quaver.Shared.Graphics.Menu.Border.Components
             UpdateSize();
             Alpha = 0;
 
-            Hovered += OnHoverEnter;
+            Hovered += (s, e) =>
+            {
+                if (IsActiveFunc?.Invoke() ?? false)
+                    return;
+
+                SkinManager.Skin?.SoundHover.CreateChannel().Play();
+            };
             Clicked += OnClicked;
         }
 
@@ -88,7 +105,8 @@ namespace Quaver.Shared.Graphics.Menu.Border.Components
         /// <param name="gameTime"></param>
         public override void Update(GameTime gameTime)
         {
-            Icon.FadeToColor(IsHovered ? HoveredColor : BaseColor, GameBase.Game.TimeSinceLastFrame, 30);
+            var isActive = IsActiveFunc?.Invoke() ?? false;
+            Icon.FadeToColor(IsHovered && !isActive ? HoveredColor : BaseColor, GameBase.Game.TimeSinceLastFrame, 30);
 
             if (SetTextTint)
                 Text.Tint = Icon.Tint;
@@ -101,7 +119,7 @@ namespace Quaver.Shared.Graphics.Menu.Border.Components
         /// <param name="text"></param>
         public void UpdateText(string text)
         {
-            Text.Text = text.ToUpper();
+            Text.Text = UppercaseText ? text.ToUpper() : text;
             UpdateSize();
         }
 
@@ -112,12 +130,6 @@ namespace Quaver.Shared.Graphics.Menu.Border.Components
         public override void DrawToSpriteBatch()
         {
         }
-
-        /// <summary>
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        private static void OnHoverEnter(object sender, EventArgs e) => SkinManager.Skin?.SoundHover.CreateChannel().Play();
 
         /// <summary>
         /// </summary>

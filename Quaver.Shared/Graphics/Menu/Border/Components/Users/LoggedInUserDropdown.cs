@@ -22,7 +22,7 @@ namespace Quaver.Shared.Graphics.Menu.Border.Components.Users
     {
         /// <summary>
         /// </summary>
-        public static ScalableVector2 ContainerSize { get; } = new ScalableVector2(436, 300);
+        public static ScalableVector2 ContainerSize { get; } = new ScalableVector2(526, 300);
 
         /// <summary>
         /// </summary>
@@ -42,7 +42,7 @@ namespace Quaver.Shared.Graphics.Menu.Border.Components.Users
 
         /// <summary>
         /// </summary>
-        private Drawable ActiveSprite => OnlineManager.Connected ? (Drawable) UserPlayercard : LoggedOutPlayercard;
+        private Drawable ActiveSprite => OnlineManager.Connected ? (Drawable)UserPlayercard : LoggedOutPlayercard;
 
         /// <summary>
         /// </summary>
@@ -61,8 +61,8 @@ namespace Quaver.Shared.Graphics.Menu.Border.Components.Users
             ScreenDarkness = new Sprite()
             {
                 Parent = game?.CurrentScreen.View.Container,
-                Size = new ScalableVector2(WindowManager.Width, WindowManager.Height - 56 * 2),
-                Y = 56,
+                Size = new ScalableVector2(WindowManager.Width, WindowManager.Height - MenuBorder.HEIGHT * 2),
+                Y = MenuBorder.HEIGHT,
                 Tint = Color.Black,
                 Alpha = 0
             };
@@ -120,12 +120,13 @@ namespace Quaver.Shared.Graphics.Menu.Border.Components.Users
             {
                 if (LoggedOutPlayercard.Visible && LoggedOutPlayercard.LoginButton.IsHovered()
                     || UserPlayercard.Visible
-                    && (UserPlayercard.ModeButton.IsHovered() || UserPlayercard.LogoutButton.IsHovered()
+                    && (UserPlayercard.LogoutButton.IsHovered()
                         || UserPlayercard.ViewProfileButton.IsHovered()))
                     Button.Depth = 1;
                 else
                     Button.Depth = 0;
             }
+
             else
             {
                 Button.Depth = 0;
@@ -154,10 +155,10 @@ namespace Quaver.Shared.Graphics.Menu.Border.Components.Users
             var height = ActiveSprite.Visible ? ActiveSprite.Height + 40 : 0;
 
             ClearAnimations();
-            ChangeHeightTo((int) height, Easing.OutQuint, 450);
+            ChangeHeightTo((int)height, Easing.OutQuint, 450);
 
             ScreenDarkness.ClearAnimations();
-            ScreenDarkness.FadeTo(0.75f, Easing.Linear, 200);
+            ScreenDarkness.FadeTo(0.85f, Easing.Linear, 200);
         }
 
         public void Close()

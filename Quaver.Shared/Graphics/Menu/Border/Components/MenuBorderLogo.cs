@@ -1,4 +1,5 @@
 using Quaver.Shared.Assets;
+using Quaver.Shared.Skinning;
 using Wobble.Graphics;
 using Wobble.Graphics.UI.Buttons;
 
@@ -17,7 +18,7 @@ namespace Quaver.Shared.Graphics.Menu.Border.Components
         /// <inheritdoc />
         /// <summary>
         /// </summary>
-        public int CustomPaddingY { get; } = -2;
+        public int CustomPaddingY { get; set; } = -2;
 
         /// <inheritdoc />
         /// <summary>
@@ -27,11 +28,24 @@ namespace Quaver.Shared.Graphics.Menu.Border.Components
         /// <inheritdoc />
         /// <summary>
         /// </summary>
-        public int CustomPaddingX { get; } = 0;
+        public int CustomPaddingX { get; }
 
         /// <inheritdoc />
         /// <summary>
         /// </summary>
-        public MenuBorderLogo() : base(UserInterface.Logo) => Size = new ScalableVector2(126, 28);
+        public MenuBorderLogo() : base(SkinManager.Skin?.UserInterfaceVersion >= 2.0f ? UserInterface.MenuBorderLogoV2 : UserInterface.Logo)
+        {
+            if (SkinManager.Skin?.UserInterfaceVersion >= 2.0f)
+            {
+                CustomPaddingX = 20;
+                CustomPaddingY = 0;
+                Size = new ScalableVector2(Image.Width, Image.Height);
+            }
+            else
+            {
+                CustomPaddingX = 25;
+                Size = new ScalableVector2(126, 28);
+            }
+        }
     }
 }

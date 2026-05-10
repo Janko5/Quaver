@@ -94,7 +94,7 @@ namespace Quaver.Shared.Graphics.Menu.Border.Components
                 Parent = this,
                 Alignment = Alignment.MidLeft,
                 Size = new ScalableVector2(32, 32),
-                Image = UserInterface.UnknownAvatar,
+                Image = UserInterface.PlayercardAvatarOffline,
                 X = 8
             };
         }
@@ -118,7 +118,7 @@ namespace Quaver.Shared.Graphics.Menu.Border.Components
         {
             Username.Text = User.OnlineUser.Username;
 
-            var steamId = (ulong) User.OnlineUser.SteamId;
+            var steamId = (ulong)User.OnlineUser.SteamId;
 
             if (SteamManager.UserAvatars.ContainsKey(steamId))
                 Avatar.Image = SteamManager.UserAvatars[steamId];

@@ -20,7 +20,7 @@ namespace Quaver.Shared.Graphics.Menu.Border.Components.Buttons
         public IconTextButtonOnlineHub() : base(FontAwesome.Get(FontAwesomeIcon.fa_reorder_option), OnClicked)
         {
             Size = new ScalableVector2(44, 44);
-            Tint = SkinManager.Skin?.MenuBorder?.ButtonTextColor ?? Color.White;
+            Tint = SkinManager.Skin.MenuBorder.ButtonTextColor;
         }
 
         /// <inheritdoc />

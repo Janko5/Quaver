@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Quaver.Shared.Graphics.Notifications;
@@ -15,6 +15,8 @@ namespace Quaver.Shared.Graphics.Menu.Border.Components
         public MenuBorderScreenChangeButton(Texture2D icon, WobbleFontStore font, string text, EventHandler onClick = null,
             Color? baseColor = null, Color? hoveredColor = null) : base(icon, font, text, onClick, baseColor, hoveredColor)
         {
+            IsActiveFunc = () => ((QuaverGame)GameBase.Game).CurrentScreen.Type == Screen;
+
             // ReSharper disable once ArrangeConstructorOrDestructorBody
             Clicked += (o, e) =>
             {
