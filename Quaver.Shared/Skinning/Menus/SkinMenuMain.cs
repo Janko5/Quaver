@@ -15,7 +15,7 @@ namespace Quaver.Shared.Skinning.Menus
 
         public Texture2D NavigationButtonHovered { get; private set; }
 
-        public float? NavigationButtonHoveredAlpha { get; private set; }
+        public float NavigationButtonHoveredAlpha { get; private set; } = 0.35f;
 
         public Texture2D TipPanel { get; private set; }
 
@@ -25,27 +25,23 @@ namespace Quaver.Shared.Skinning.Menus
 
         public Texture2D NoteVisualizer { get; private set; }
 
-        public float? NoteVisualizerOpacity { get; private set; }
+        public float NoteVisualizerOpacity { get; private set; } = 0.60f;
 
-        public Color? AudioVisualizerColor { get; private set; }
+        public Color NavigationButtonTextColor { get; private set; } = new Color(255, 255, 255, 255);
 
-        public float? AudioVisualizerOpacity { get; private set; }
+        public Color NavigationQuitButtonTextColor { get; private set; } = new Color(249, 100, 93, 255);
 
-        public Color? NavigationButtonTextColor { get; private set; }
+        public Color TipTitleColor { get; private set; } = new Color(69, 214, 245, 255);
 
-        public Color? NavigationQuitButtonTextColor { get; private set; }
+        public Color TipTextColor { get; private set; } = new Color(255, 255, 255, 255);
 
-        public Color? TipTitleColor { get; private set; }
+        public Color NewsTitleColor { get; private set; } = new Color(69, 214, 245, 255);
 
-        public Color? TipTextColor { get; private set; }
+        public Color NewsDateColor { get; private set; } = new Color(128, 128, 128, 255);
 
-        public Color? NewsTitleColor { get; private set; }
+        public Color NewsTextColor { get; private set; } = new Color(255, 255, 255, 255);
 
-        public Color? NewsDateColor { get; private set; }
-
-        public Color? NewsTextColor { get; private set; }
-
-        public Color? JukeboxProgressBarColor { get; private set; }
+        public Color JukeboxProgressBarColor { get; private set; } = new Color(255, 222, 124, 255);
 
         public Texture2D LogoBackground { get; private set; }
 
@@ -58,40 +54,34 @@ namespace Quaver.Shared.Skinning.Menus
             var ini = Config["MainMenu"];
 
             var navigationButtonHoveredAlpha = ini["NavigationButtonHoveredAlpha"];
-            ReadIndividualConfig(navigationButtonHoveredAlpha, () => NavigationButtonHoveredAlpha = ConfigHelper.ReadFloat(0.35f, navigationButtonHoveredAlpha));
+            NavigationButtonHoveredAlpha = ConfigHelper.ReadFloat(NavigationButtonHoveredAlpha, navigationButtonHoveredAlpha);
 
             var noteVisualizerOpacity = ini["NoteVisualizerOpacity"];
-            ReadIndividualConfig(noteVisualizerOpacity, () => NoteVisualizerOpacity = ConfigHelper.ReadFloat(0, noteVisualizerOpacity));
-
-            var audioVisualizerColor = ini["AudioVisualizerColor"];
-            ReadIndividualConfig(audioVisualizerColor, () => AudioVisualizerColor = ConfigHelper.ReadColor(Color.Transparent, audioVisualizerColor));
-
-            var audioVisualizerOpacity = ini["AudioVisualizerOpacity"];
-            ReadIndividualConfig(audioVisualizerOpacity, () => AudioVisualizerOpacity = ConfigHelper.ReadFloat(0, audioVisualizerOpacity));
+            NoteVisualizerOpacity = ConfigHelper.ReadFloat(NoteVisualizerOpacity, noteVisualizerOpacity);
 
             var navBtnTextColor = ini["NavigationButtonTextColor"];
-            ReadIndividualConfig(navBtnTextColor, () => NavigationButtonTextColor = ConfigHelper.ReadColor(Color.Transparent, navBtnTextColor));
+            NavigationButtonTextColor = ConfigHelper.ReadColor(NavigationButtonTextColor, navBtnTextColor);
 
             var navQuitBtnTextColor = ini["NavigationQuitButtonTextColor"];
-            ReadIndividualConfig(navQuitBtnTextColor, () => NavigationQuitButtonTextColor = ConfigHelper.ReadColor(Color.Transparent, navQuitBtnTextColor));
+            NavigationQuitButtonTextColor = ConfigHelper.ReadColor(NavigationQuitButtonTextColor, navQuitBtnTextColor);
 
             var tipTitleColor = ini["TipTitleColor"];
-            ReadIndividualConfig(tipTitleColor, () => TipTitleColor = ConfigHelper.ReadColor(Color.Transparent, tipTitleColor));
+            TipTitleColor = ConfigHelper.ReadColor(TipTitleColor, tipTitleColor);
 
             var tipTextColor = ini["TipTextColor"];
-            ReadIndividualConfig(tipTextColor, () => TipTextColor = ConfigHelper.ReadColor(Color.Transparent, tipTextColor));
+            TipTextColor = ConfigHelper.ReadColor(TipTextColor, tipTextColor);
 
             var newsTitleColor = ini["NewsTitleColor"];
-            ReadIndividualConfig(newsTitleColor, () => NewsTitleColor = ConfigHelper.ReadColor(Color.Transparent, newsTitleColor));
+            NewsTitleColor = ConfigHelper.ReadColor(NewsTitleColor, newsTitleColor);
 
             var newsDateColor = ini["NewsDateColor"];
-            ReadIndividualConfig(newsDateColor, () => NewsDateColor = ConfigHelper.ReadColor(Color.Transparent, newsDateColor));
+            NewsDateColor = ConfigHelper.ReadColor(NewsDateColor, newsDateColor);
 
             var newsTextColor = ini["NewsTextColor"];
-            ReadIndividualConfig(newsTextColor, () => NewsTextColor = ConfigHelper.ReadColor(Color.Transparent, newsTextColor));
+            NewsTextColor = ConfigHelper.ReadColor(NewsTextColor, newsTextColor);
 
             var jukeboxProgressBarColor = ini["JukeboxProgressBarColor"];
-            ReadIndividualConfig(jukeboxProgressBarColor, () => JukeboxProgressBarColor = ConfigHelper.ReadColor(Color.Transparent, jukeboxProgressBarColor));
+            JukeboxProgressBarColor = ConfigHelper.ReadColor(JukeboxProgressBarColor, jukeboxProgressBarColor);
         }
 
         protected override void LoadElements()

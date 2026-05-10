@@ -39,6 +39,16 @@ namespace Quaver.Shared.Assets
         public static string LatoHeavy { get; } = "Lato-Heavy";
         public static string LatoBlack { get; } = "Lato-Black";
 
+        // Inter fonts
+        public static string InterRegular { get; } = "Inter-Regular";
+        public static string InterMedium { get; } = "Inter-Medium";
+        public static string InterSemiBold { get; } = "Inter-SemiBold";
+        public static string InterBold { get; } = "Inter-Bold";
+        public static string InterExtraBold { get; } = "Inter-ExtraBold";
+        public static string InterBlack { get; } = "Inter-Black";
+        public static string InterLight { get; } = "Inter-Light";
+        public static string InterThin { get; } = "Inter-Thin";
+
         #endregion
 
         /// <summary>
@@ -119,6 +129,63 @@ namespace Quaver.Shared.Assets
 
             // Lato-Black
             FontManager.CacheWobbleFont(LatoBlack, new WobbleFontStore(20, latoBlack, new Dictionary<string, byte[]>
+                {
+                    {emojiString, emojiFont},
+                    {cjkString, notoCjkFont}
+                }));
+
+            // Inter fonts
+            FontManager.CacheWobbleFont(InterRegular, new WobbleFontStore(20,
+                GameBase.Game.Resources.Get($"{folder}/Inter/{InterRegular}.ttf"), new Dictionary<string, byte[]>
+                {
+                    {emojiString, emojiFont},
+                    {cjkString, notoCjkFont}
+                }));
+
+            FontManager.CacheWobbleFont(InterMedium, new WobbleFontStore(20,
+                GameBase.Game.Resources.Get($"{folder}/Inter/{InterMedium}.ttf"), new Dictionary<string, byte[]>
+                {
+                    {emojiString, emojiFont},
+                    {cjkString, notoCjkFont}
+                }));
+
+            FontManager.CacheWobbleFont(InterSemiBold, new WobbleFontStore(20,
+                GameBase.Game.Resources.Get($"{folder}/Inter/{InterSemiBold}.ttf"), new Dictionary<string, byte[]>
+                {
+                    {emojiString, emojiFont},
+                    {cjkString, notoCjkFont}
+                }));
+
+            FontManager.CacheWobbleFont(InterBold, new WobbleFontStore(20,
+                GameBase.Game.Resources.Get($"{folder}/Inter/{InterBold}.ttf"), new Dictionary<string, byte[]>
+                {
+                    {emojiString, emojiFont},
+                    {cjkString, notoCjkFont}
+                }));
+
+            FontManager.CacheWobbleFont(InterExtraBold, new WobbleFontStore(20,
+                GameBase.Game.Resources.Get($"{folder}/Inter/{InterExtraBold}.ttf"), new Dictionary<string, byte[]>
+                {
+                    {emojiString, emojiFont},
+                    {cjkString, notoCjkFont}
+                }));
+
+            FontManager.CacheWobbleFont(InterBlack, new WobbleFontStore(20,
+                GameBase.Game.Resources.Get($"{folder}/Inter/{InterBlack}.ttf"), new Dictionary<string, byte[]>
+                {
+                    {emojiString, emojiFont},
+                    {cjkString, notoCjkFont}
+                }));
+
+            FontManager.CacheWobbleFont(InterLight, new WobbleFontStore(20,
+                GameBase.Game.Resources.Get($"{folder}/Inter/{InterLight}.ttf"), new Dictionary<string, byte[]>
+                {
+                    {emojiString, emojiFont},
+                    {cjkString, notoCjkFont}
+                }));
+
+            FontManager.CacheWobbleFont(InterThin, new WobbleFontStore(20,
+                GameBase.Game.Resources.Get($"{folder}/Inter/{InterThin}.ttf"), new Dictionary<string, byte[]>
                 {
                     {emojiString, emojiFont},
                     {cjkString, notoCjkFont}

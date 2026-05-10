@@ -622,7 +622,7 @@ namespace Quaver.Shared.Skinning
             HitLightingFps = ConfigHelper.ReadInt32(HitLightingFps, ini["HitLightingFps"]);
             HoldLightingFps = ConfigHelper.ReadInt32(HoldLightingFps, ini["HoldLightingFps"]);
             HitLightingScale = ConfigHelper.ReadInt32(HitLightingScale, ini["HitLightingScale"]);
-            HoldLightingScale = ConfigHelper.ReadInt32(HitLightingScale, ini["HoldLightingScale"]);
+            HoldLightingScale = ConfigHelper.ReadInt32(HoldLightingScale, ini["HoldLightingScale"]);
             HitBubbleScale = ConfigHelper.ReadFloat(HitBubbleScale, ini["HitBubbleScale"]);
             HitBubblesAlignment = ConfigHelper.ReadEnum(HitBubblesAlignment, ini["HitBubblesAlignment"]);
             HitBubblesPosX = ConfigHelper.ReadInt32((int)HitBubblesPosX, ini["HitBubblesPosX"]);

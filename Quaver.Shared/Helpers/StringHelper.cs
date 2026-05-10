@@ -10,6 +10,8 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using Microsoft.Xna.Framework;
+using Quaver.API.Enums;
+using Quaver.API.Helpers;
 
 namespace Quaver.Shared.Helpers
 {
@@ -62,6 +64,30 @@ namespace Quaver.Shared.Helpers
         /// <param name="strB"></param>
         /// <returns></returns>
         internal static bool ContainsIgnoreCase(string strA, string strB) => strA?.Contains(strB, StringComparison.OrdinalIgnoreCase) == true;
+
+        /// <summary>
+        ///     Formats the difficulty name to include the keymode prefix [xK] if it's not already there.
+        /// </summary>
+        /// <param name="diffName"></param>
+        /// <param name="mode"></param>
+        /// <param name="hasScratch"></param>
+        /// <param name="multiKeymode"></param>
+        /// <returns></returns>
+        internal static string GetFormatDifficultyName(string diffName, GameMode mode, bool hasScratch, bool multiKeymode)
+        {
+            if (string.IsNullOrEmpty(diffName))
+                diffName = "Unknown";
+
+            if (!multiKeymode)
+                return diffName;
+
+            var keyMode = ModeHelper.ToShortHand(mode, hasScratch);
+
+            if (ContainsIgnoreCase(diffName, keyMode))
+                return diffName;
+
+            return $"[{keyMode}] {diffName}";
+        }
 
         /// <summary>
         ///     Adds an ordinal to a string.

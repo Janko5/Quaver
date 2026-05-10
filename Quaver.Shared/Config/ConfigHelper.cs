@@ -142,13 +142,20 @@ namespace Quaver.Shared.Config
         /// <param name="defaultColor"></param>
         /// <param name="newVal"></param>
         /// <returns></returns>
-        internal static Color ReadColor(Color defaultColor, string newVal) =>
-            new Drain<char>(newVal, ',') is var (tr, (tg, (tb, (ta, _)))) &&
-            byte.TryParse(tr, out var r) &&
-            byte.TryParse(tg, out var g) &&
-            byte.TryParse(tb, out var b)
-                ? new(r, g, b, byte.TryParse(ta, out var a) ? a : 255)
-                : defaultColor;
+        internal static Color ReadColor(Color defaultColor, string newVal)
+        {
+            if (newVal != null &&
+                newVal.Contains(',') &&
+                new Drain<char>(newVal, ',') is var (tr, (tg, (tb, (ta, _)))) &&
+                byte.TryParse(tr.Trim(), out var r) &&
+                byte.TryParse(tg.Trim(), out var g) &&
+                byte.TryParse(tb.Trim(), out var b))
+            {
+                return new(r, g, b, byte.TryParse(ta.Trim(), out var a) ? a : 255);
+            }
+
+            return defaultColor;
+        }
 
         /// <summary>
         ///     Reads an XNA Vector2 from a string

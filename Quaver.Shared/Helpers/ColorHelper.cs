@@ -79,8 +79,16 @@ namespace Quaver.Shared.Helpers
             var green = 0;
             var blue = 0;
 
+            var alpha = 255;
             switch (hexColor.Length)
             {
+                case 8:
+                    //#RRGGBBAA
+                    red = int.Parse(hexColor.Substring(0, 2), NumberStyles.AllowHexSpecifier);
+                    green = int.Parse(hexColor.Substring(2, 2), NumberStyles.AllowHexSpecifier);
+                    blue = int.Parse(hexColor.Substring(4, 2), NumberStyles.AllowHexSpecifier);
+                    alpha = int.Parse(hexColor.Substring(6, 2), NumberStyles.AllowHexSpecifier);
+                    break;
                 case 6:
                     //#RRGGBB
                     red = int.Parse(hexColor.Substring(0, 2), NumberStyles.AllowHexSpecifier);
@@ -95,7 +103,7 @@ namespace Quaver.Shared.Helpers
                     break;
             }
 
-            return new Color(red, green, blue);
+            return new Color(red, green, blue, alpha);
         }
 
         /// <summary>

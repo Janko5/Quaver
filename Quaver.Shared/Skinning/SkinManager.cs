@@ -7,6 +7,7 @@
 
 using System;
 using System.IO;
+using System.Linq;
 using IniFileParser;
 using Quaver.Shared.Config;
 using Quaver.Shared.Graphics.Notifications;
@@ -29,6 +30,26 @@ namespace Quaver.Shared.Skinning
 {
     public static class SkinManager
     {
+        private static string SanitizeFileName(string value, string fallback)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return fallback;
+
+            var invalid = Path.GetInvalidFileNameChars();
+            var chars = value.Where(c => !invalid.Contains(c)).ToArray();
+            var cleaned = new string(chars).Trim().Trim('.');
+            return string.IsNullOrWhiteSpace(cleaned) ? fallback : cleaned;
+        }
+
+        private static bool IsPathInDirectory(string baseDirectory, string candidatePath)
+        {
+            var fullBase = Path.GetFullPath(baseDirectory)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                + Path.DirectorySeparatorChar;
+            var fullCandidate = Path.GetFullPath(candidatePath);
+            return fullCandidate.StartsWith(fullBase, StringComparison.OrdinalIgnoreCase);
+        }
+
         /// <summary>
         ///     The time that the user has requested their skin be reloaded.
         /// </summary>
@@ -287,7 +308,8 @@ namespace Quaver.Shared.Skinning
                             }
                         }
 
-                        var path = $"{dir}/{name}.qs";
+                        name = SanitizeFileName(name, ConfigManager.Skin.Value);
+                        var path = Path.Combine(dir, $"{name}.qs");
                         archive.SaveTo(path, new ZipWriterOptions(CompressionType.None));
 
                         Utils.NativeUtils.HighlightInFileManager(path);
@@ -324,8 +346,18 @@ namespace Quaver.Shared.Skinning
                     {
                         foreach (var entry in archive.Entries)
                         {
-                            if (!entry.IsDirectory)
-                                entry.WriteToDirectory(dir, new ExtractionOptions() { ExtractFullPath = true, Overwrite = true });
+                            if (entry.IsDirectory)
+                                continue;
+
+                            var entryPath = Path.Combine(dir, entry.Key.Replace('/', Path.DirectorySeparatorChar));
+
+                            if (!IsPathInDirectory(dir, entryPath))
+                            {
+                                Logger.Warning($"Blocked unsafe skin archive entry: {entry.Key}", LogType.Runtime);
+                                continue;
+                            }
+
+                            entry.WriteToDirectory(dir, new ExtractionOptions() { ExtractFullPath = true, Overwrite = true });
                         }
                     }
 

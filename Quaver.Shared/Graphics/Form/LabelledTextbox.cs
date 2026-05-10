@@ -28,19 +28,22 @@ namespace Quaver.Shared.Graphics.Form
         /// <param name="spacing"></param>
         /// <param name="textboxPlaceholder"></param>
         /// <param name="initialText"></param>
+        /// <param name="font"></param>
         public LabelledTextbox(float width, string label, int labelSize = 20, int textboxHeight = 60, int textboxFontSize = 20, int spacing = 14,
-            string textboxPlaceholder = "", string initialText = "")
+            string textboxPlaceholder = "", string initialText = "", WobbleFontStore font = null)
         {
+            var f = font ?? FontManager.GetWobbleFont(Fonts.LatoBlack);
+
             Size = new ScalableVector2(width, 62);
             Alpha = 0;
 
-            Label = new SpriteTextPlus(FontManager.GetWobbleFont(Fonts.LatoBlack), label)
+            Label = new SpriteTextPlus(f, label)
             {
                 Parent = this,
                 FontSize = labelSize
             };
 
-            Textbox = new Textbox(new ScalableVector2(width, textboxHeight), FontManager.GetWobbleFont(Fonts.LatoBlack),
+            Textbox = new Textbox(new ScalableVector2(width, textboxHeight), f,
                 textboxFontSize, initialText, textboxPlaceholder)
             {
                 Parent = this,

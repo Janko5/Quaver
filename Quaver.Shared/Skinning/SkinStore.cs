@@ -16,6 +16,7 @@ using System.Text.RegularExpressions;
 using IniFileParser;
 using IniFileParser.Exceptions;
 using IniFileParser.Model;
+using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using MoreLinq.Extensions;
 using Quaver.API.Enums;
@@ -27,6 +28,7 @@ using Quaver.Shared.Skinning.Menus;
 using Wobble;
 using Wobble.Assets;
 using Wobble.Audio.Samples;
+using Wobble.Graphics.Sprites;
 using Wobble.Graphics.UI.Form;
 using Wobble.Logging;
 
@@ -91,6 +93,21 @@ namespace Quaver.Shared.Skinning
         internal SkinMenuSongSelect SongSelect { get; }
 
         /// <summary>
+        ///     Skinning for universal elements (volume controller, notifications, etc.)
+        /// </summary>
+        internal SkinMenuUniversal Universal { get; }
+
+        /// <summary>
+        ///     Skinning for the music visualizer
+        /// </summary>
+        internal SkinMusicVisualizer MusicVisualizer { get; }
+
+        /// <summary>
+        ///     Skinning for the Volume Controller
+        /// </summary>
+        internal SkinMenuVolumeController VolumeController { get; }
+
+        /// <summary>
         ///     The name of the skin.
         /// </summary>
         internal string Name { get; private set; } = "Default Quaver Skin";
@@ -126,6 +143,11 @@ namespace Quaver.Shared.Skinning
         ///     Whether the skin uses its own backgrounds.
         /// </summary>
         internal bool UseSkinBackgrounds { get; private set; }
+
+        /// <summary>
+        ///     The version of the user interface (1.0 = legacy, 2.0 = modern).
+        /// </summary>
+        public float UserInterfaceVersion { get; private set; } = 1.0f;
 
         /// <summary>
         ///     Grade Textures.
@@ -283,6 +305,210 @@ namespace Quaver.Shared.Skinning
         internal List<string> BackgroundPaths { get; private set; }
 
         /// <summary>
+        ///     The texture for an open dropdown.
+        /// </summary>
+        internal Texture2D DropdownOpen { get; private set; }
+
+        /// <summary>
+        ///     The texture for a closed dropdown.
+        /// </summary>
+        internal Texture2D DropdownClose { get; private set; }
+
+        /// <summary>
+        ///     The texture for the bottom of a dropdown when open.
+        /// </summary>
+        internal Texture2D DropdownBottom { get; private set; }
+
+        /// <summary>
+        ///     The texture for the middle of a dropdown when open.
+        /// </summary>
+        internal Texture2D DropdownTop { get; private set; }
+        internal Texture2D DropdownMiddle { get; private set; }
+
+        /// <summary>
+        ///     The universal scrollbar track texture.
+        /// </summary>
+        internal Texture2D? Scrollbar { get; private set; }
+
+        /// <summary>
+        ///     The universal square button texture used in filter panel buttons.
+        /// </summary>
+        internal Texture2D? SquareButton { get; private set; }
+
+        /// <summary>
+        ///     The universal background texture used across multiple screens.
+        /// </summary>
+        internal Texture2D? Background { get; private set; }
+
+        /// <summary>
+        ///     The universal info background texture used in the Playercard.
+        /// </summary>
+        public Texture2D? InfoBackground { get; private set; }
+
+        /// <summary>
+        ///     The universal header left texture.
+        /// </summary>
+        public Texture2D? HeaderLeft { get; private set; }
+
+        /// <summary>
+        ///     The universal header right texture.
+        /// </summary>
+        public Texture2D? HeaderRight { get; private set; }
+
+        /// <summary>
+        ///     The universal header texture.
+        /// </summary>
+        public Texture2D? Header { get; private set; }
+
+        /// <summary>
+        ///     The universal switch background texture.
+        /// </summary>
+        public Texture2D? UniversalSwitchBackground { get; private set; }
+
+        /// <summary>
+        ///     The universal switch on thumb texture.
+        /// </summary>
+        public Texture2D? UniversalSwitchOn { get; private set; }
+
+        /// <summary>
+        ///     The universal switch off thumb texture.
+        /// </summary>
+        public Texture2D? UniversalSwitchOff { get; private set; }
+
+        public Texture2D? More { get; private set; }
+        public Texture2D? MoreHover { get; private set; }
+
+        internal Color DropdownCloseColor { get; private set; }
+        internal Color DropdownOpenColor { get; private set; }
+        internal Color DropdownSeparatorColor { get; private set; }
+        internal Color DropdownMiddleCloseColor { get; private set; }
+
+        /// <summary>
+        ///     The background color for universal-info-background used e.g. in the Playercard.
+        /// </summary>
+        public Color PlayercardInfoBackgroundColor { get; private set; }
+
+
+        /// <summary>
+        ///     The main background color of the universal switch.
+        /// </summary>
+        public Color SwitchMainBackgroundColor { get; private set; }
+
+        /// <summary>
+        ///     The background color of the universal switch when turned on.
+        /// </summary>
+        public Color SwitchOnBackgroundColor { get; private set; }
+
+        /// <summary>
+        ///     The background color of the universal switch when turned off.
+        /// </summary>
+        public Color SwitchOffBackgroundColor { get; private set; }
+
+        /// <summary>
+        ///     The color of the universal switch on icon.
+        /// </summary>
+        public Color SwitchOnColor { get; private set; }
+
+        /// <summary>
+        ///     The color of the universal switch off icon.
+        /// </summary>
+        public Color SwitchOffColor { get; private set; }
+
+
+        /// <summary>
+        ///    The background color of the filter panel dropdowns when hovered.
+        /// </summary>
+        internal Color DropdownHoverColor { get; private set; }
+
+        /// <summary>
+        ///   The text color of the filter panel dropdowns.
+        /// </summary>
+        internal Color DropdownTextColor { get; private set; }
+
+        /// <summary>
+        ///   The background color of the right click options dropdowns.
+        /// </summary>
+        internal Color DropdownRightClickOptionsColor { get; private set; }
+
+        /// <summary>
+        ///  The background color of the filter panel search box.
+        /// </summary>
+        internal Color SearchFilterPanelColor { get; private set; }
+
+
+
+        /// <summary>
+        ///  The text color of the filter panel search box when active.
+        /// </summary>
+        internal Color SearchActiveTextColor { get; private set; }
+        
+        internal Color SearchPlaceholderTextColor { get; private set; }
+        internal Color SearchCounterTextColor { get; private set; }
+        internal Color SearchHelpColorActive { get; private set; }
+        internal Color SearchHelpColorNotActive { get; private set; }
+
+        /// <summary>
+        ///  The background color of the filter panel buttons when not active.
+        /// </summary>
+        internal Color ButtonNotActiveColor { get; private set; }
+
+        /// <summary>
+        ///  The background color of the filter panel buttons when active.
+        /// </summary>
+        internal Color ButtonActiveColor { get; private set; }
+
+        /// <summary>
+        ///  The background color of the filter panel buttons when hovered.
+        /// </summary>
+        internal Color ButtonHoverColor { get; private set; }
+
+        /// <summary>
+        ///  The content color of the filter panel buttons.
+        /// </summary>
+        internal Color ButtonContentColor { get; private set; }
+
+        /// <summary>
+        ///  The background color of the difficulty slider values.
+        /// </summary>
+        internal Color DifficultySliderValuesBackgroundColor { get; private set; }
+
+        /// <summary>
+        ///  The background color of the difficulty slider track when not selected.
+        /// </summary>
+        internal Color DifficultySliderNotSelectedBackgroundColor { get; private set; }
+
+        /// <summary>
+        ///  The background color of the difficulty slider track when selected.
+        /// </summary>
+        internal Color DifficultySliderSelectedBackgroundColor { get; private set; }
+
+        /// <summary>
+        ///  The color of the difficulty slider thumbs.
+        /// </summary>
+        internal Color DifficultySliderThumbColor { get; private set; }
+
+        /// <summary>
+        ///     If we should use difficulty colors for the difficulty slider range bar.
+        /// </summary>
+        internal bool UseDifficultyColorsInDifficultySlider { get; private set; }
+
+        /// <summary>
+        ///     The color of the universal scrollbar thumb (draggable part).
+        /// </summary>
+        internal Color ScrollbarThumbColor { get; private set; }
+
+        /// <summary>
+        ///     The background color of the universal scrollbar track.
+        /// </summary>
+        internal Color ScrollbarBackgroundColor { get; private set; }
+
+        /// <summary>
+        ///     The top/bottom slice margins for the scrollbar NineSliceSprite.
+        ///     Left and Right are always 0. The ini value is "top,bottom" (e.g. "8,8").
+        /// </summary>
+        internal SliceMargins ScrollbarTopBottomMargins { get; private set; }
+
+        /// <summary>
         ///     Sound effect elements.
         /// </summary>
         internal AudioSample SoundHit { get; private set; }
@@ -336,6 +562,9 @@ namespace Quaver.Shared.Skinning
                 MainMenu = new SkinMenuMain(this, Config);
                 Results = new SkinMenuResults(this, Config);
                 SongSelect = new SkinMenuSongSelect(this, Config);
+                Universal = new SkinMenuUniversal(this, Config);
+                VolumeController = new SkinMenuVolumeController(this, Config);
+                MusicVisualizer = new SkinMusicVisualizer(this, Config);
             }
             catch (Exception e)
             {
@@ -386,6 +615,8 @@ namespace Quaver.Shared.Skinning
                 Version = ConfigHelper.ReadString(Version, Config["General"]["Version"]);
                 CenterCursor = ConfigHelper.ReadBool(false, Config["General"]["CenterCursor"]);
                 UseSkinBackgrounds = ConfigHelper.ReadBool(false, Config["General"]["UseSkinBackgrounds"]);
+                UserInterfaceVersion = ConfigHelper.ReadFloat(1.0f, Config["General"]["UserInterfaceVersion"]);
+
             }
             catch (Exception e)
             {
@@ -413,6 +644,126 @@ namespace Quaver.Shared.Skinning
             LoadMultiplayerElements();
             LoadBackgrounds();
             LoadSoundEffects();
+            LoadUniversalTextures();
+            LoadUniversalSkinOptions();
+        }
+
+        /// <summary>
+        ///     Loads all skinnable textures from the Universal skin folder.
+        /// </summary>
+        private void LoadUniversalTextures()
+        {
+            var folder = $"{Dir}/Universal";
+
+            const string top = "universal-dropdown-top";
+            DropdownTop = LoadSingleTexture($"{folder}/{top}", $"Quaver.Resources/Textures/Skins/Shared/Universal/{top}.png", UserInterface.DropdownMiddle);
+
+            const string open = "universal-dropdown-open";
+            DropdownOpen = LoadSingleTexture($"{folder}/{open}", $"Quaver.Resources/Textures/Skins/Shared/Universal/{open}.png");
+
+            const string close = "universal-dropdown-close";
+            DropdownClose = LoadSingleTexture($"{folder}/{close}", $"Quaver.Resources/Textures/Skins/Shared/Universal/{close}.png");
+
+            const string bottom = "universal-dropdown-bottom";
+            DropdownBottom = LoadSingleTexture($"{folder}/{bottom}", $"Quaver.Resources/Textures/Skins/Shared/Universal/{bottom}.png", UserInterface.DropdownBottom);
+
+            const string middle = "universal-dropdown-middle";
+            DropdownMiddle = LoadSingleTexture($"{folder}/{middle}", $"Quaver.Resources/Textures/Skins/Shared/Universal/{middle}.png", UserInterface.DropdownMiddle);
+
+            const string scrollbar = "universal-scrollbar";
+            Scrollbar = LoadSingleTexture($"{folder}/{scrollbar}", $"Quaver.Resources/Textures/Skins/Shared/Universal/{scrollbar}.png");
+
+            const string squareButton = "universal-square-button";
+            SquareButton = LoadSingleTexture($"{folder}/{squareButton}", $"Quaver.Resources/Textures/Skins/Shared/Universal/{squareButton}.png");
+
+            const string background = "universal-background";
+            Background = LoadSingleTexture($"{folder}/{background}", $"Quaver.Resources/Textures/Skins/Shared/Universal/{background}.png");
+
+            const string infoBg = "universal-info-background";
+            InfoBackground = LoadSingleTexture($"{folder}/{infoBg}", $"Quaver.Resources/Textures/Skins/Shared/Universal/{infoBg}.png");
+
+            const string headerLeft = "universal-header-left";
+            HeaderLeft = LoadSingleTexture($"{folder}/{headerLeft}", $"Quaver.Resources/Textures/Skins/Shared/Universal/{headerLeft}.png");
+
+            const string headerRight = "universal-header-right";
+            HeaderRight = LoadSingleTexture($"{folder}/{headerRight}", $"Quaver.Resources/Textures/Skins/Shared/Universal/{headerRight}.png");
+
+            const string header = "universal-header";
+            Header = LoadSingleTexture($"{folder}/{header}", $"Quaver.Resources/Textures/Skins/Shared/Universal/{header}.png");
+
+            const string switchBg = "universal-switch-background";
+            UniversalSwitchBackground = LoadSingleTexture($"{folder}/{switchBg}", $"Quaver.Resources/Textures/UI/Universal/{switchBg}.png", UserInterface.PlayercardSwitchBackground);
+
+            const string switchOn = "universal-switch-on";
+            UniversalSwitchOn = LoadSingleTexture($"{folder}/{switchOn}", $"Quaver.Resources/Textures/UI/Universal/{switchOn}.png");
+
+            const string switchOff = "universal-switch-off";
+            UniversalSwitchOff = LoadSingleTexture($"{folder}/{switchOff}", $"Quaver.Resources/Textures/UI/Universal/{switchOff}.png");
+
+            More = LoadSingleTexture($"{folder}/More", "Quaver.Resources/Textures/UI/Mods/More.png");
+            MoreHover = LoadSingleTexture($"{folder}/More-hover", "Quaver.Resources/Textures/UI/Mods/More-hover.png");
+        }
+
+        private void LoadUniversalSkinOptions()
+        {
+            // Check if Universal section exists in skin.ini to avoid NullReferenceException
+            var universalSection = Config?["Universal"];
+
+            DropdownCloseColor = ConfigHelper.ReadColor(new Color(24, 30, 37, 255), universalSection?["DropdownCloseColor"]);
+            DropdownOpenColor = ConfigHelper.ReadColor(new Color(24, 30, 37, 255), universalSection?["DropdownOpenColor"]);
+            DropdownSeparatorColor = ConfigHelper.ReadColor(new Color(255, 255, 255, 255), universalSection?["DropdownSeparatorColor"]);
+            DropdownMiddleCloseColor = ConfigHelper.ReadColor(new Color(24, 30, 37, 255), universalSection?["DropdownMiddleCloseColor"]);
+            DropdownHoverColor = ConfigHelper.ReadColor(new Color(54, 78, 103, 255), universalSection?["DropdownHoverColor"]);
+            DropdownTextColor = ConfigHelper.ReadColor(new Color(255,255,255,255), universalSection?["DropdownTextColor"]);
+            DropdownRightClickOptionsColor = ConfigHelper.ReadColor(new Color(24, 30, 37, 255), universalSection?["DropdownRightClickOptionsColor"]);
+
+            PlayercardInfoBackgroundColor = ConfigHelper.ReadColor(new Color(24, 30, 37, 255), universalSection?["PlayercardInfoBackgroundColor"]);
+
+            SearchFilterPanelColor = ConfigHelper.ReadColor(new Color(24, 30, 37, 255), universalSection?["SearchFilterPanelColor"]);
+            SearchActiveTextColor = ConfigHelper.ReadColor(new Color(217, 227, 244, 255), universalSection?["SearchActiveTextColor"]);
+            SearchPlaceholderTextColor = ConfigHelper.ReadColor(new Color(217, 227, 244, 128), universalSection?["SearchPlaceholderTextColor"]);
+            SearchCounterTextColor = ConfigHelper.ReadColor(new Color(217, 227, 244, 255), universalSection?["SearchCounterTextColor"]);
+            SearchHelpColorActive = ConfigHelper.ReadColor(new Color(57, 139, 208, 255), universalSection?["SearchHelpColorActive"]);
+            SearchHelpColorNotActive = ConfigHelper.ReadColor(new Color(217, 227, 244, 255), universalSection?["SearchHelpColorNotActive"]);
+
+            ButtonNotActiveColor = ConfigHelper.ReadColor(new Color(24, 30, 37, 255), universalSection?["ButtonNotActiveColor"]);
+            ButtonActiveColor = ConfigHelper.ReadColor(new Color(57, 139, 208, 255), universalSection?["ButtonActiveColor"]);
+            ButtonHoverColor = ConfigHelper.ReadColor(new Color(54, 78, 103, 255), universalSection?["ButtonHoverColor"]);
+            ButtonContentColor = ConfigHelper.ReadColor(new Color(255,255,255,255), universalSection?["ButtonContentColor"]);
+
+            DifficultySliderValuesBackgroundColor = ConfigHelper.ReadColor(new Color(24, 30, 37, 255), universalSection?["DifficultySliderValuesBackgroundColor"]);
+            DifficultySliderNotSelectedBackgroundColor = ConfigHelper.ReadColor(new Color(24, 30, 37, 255), universalSection?["DifficultySliderNotSelectedBackgroundColor"]);
+            DifficultySliderSelectedBackgroundColor = ConfigHelper.ReadColor(new Color(57, 139, 208, 255), universalSection?["DifficultySliderSelectedBackgroundColor"]);
+            DifficultySliderThumbColor = ConfigHelper.ReadColor(new Color(255,255,255,255), universalSection?["DifficultySliderThumbColor"]);
+            UseDifficultyColorsInDifficultySlider =
+                ConfigHelper.ReadBool(UseDifficultyColorsInDifficultySlider,
+                    universalSection?["UseDifficultyColorsInDifficultySlider"]);
+
+            ScrollbarThumbColor = ConfigHelper.ReadColor(new Color(217, 227, 244, 255), universalSection?["ScrollbarThumbColor"]);
+            ScrollbarBackgroundColor = ConfigHelper.ReadColor(new Color(24, 30, 37, 255), universalSection?["ScrollbarBackgroundColor"]);
+
+            // Format: "top,bottom" (e.g. "8,8") — Left and Right are always 0
+            var scrollbarMarginsRaw = universalSection?["ScrollbarTopBottomMargins"];
+            if (!string.IsNullOrEmpty(scrollbarMarginsRaw))
+            {
+                var parts = scrollbarMarginsRaw.Split(',');
+                if (parts.Length == 2
+                    && int.TryParse(parts[0].Trim(), out var scrollTop)
+                    && int.TryParse(parts[1].Trim(), out var scrollBottom))
+                    ScrollbarTopBottomMargins = new SliceMargins(0, 0, scrollTop, scrollBottom);
+                else
+                    ScrollbarTopBottomMargins = new SliceMargins(0, 0, 8, 8);
+            }
+            else
+            {
+                ScrollbarTopBottomMargins = new SliceMargins(0, 0, 8, 8);
+            }
+
+            SwitchMainBackgroundColor = ConfigHelper.ReadColor(new Color(39, 48, 56, 255), universalSection?["SwitchMainBackgroundColor"]);
+            SwitchOnBackgroundColor = ConfigHelper.ReadColor(new Color(37,200,140,255), universalSection?["SwitchOnBackgroundColor"]);
+            SwitchOffBackgroundColor = ConfigHelper.ReadColor(new Color(255,58,111,255), universalSection?["SwitchOffBackgroundColor"]);
+            SwitchOnColor = ConfigHelper.ReadColor(new Color(255,255,255,255), universalSection?["SwitchOnColor"]);
+            SwitchOffColor = ConfigHelper.ReadColor(new Color(255,255,255,255), universalSection?["SwitchOffColor"]);
         }
 
         private Texture2D GetTextureFromCacheOr(byte[] buffer, Func<byte[], Texture2D> func)
@@ -529,8 +880,12 @@ namespace Quaver.Shared.Skinning
                 if (resource == null)
                     return new List<Texture2D> { UserInterface.BlankBox };
 
-                return AssetLoader.LoadSpritesheetFromTexture(AssetLoader.LoadTexture2D(
-                    GameBase.Game.Resources.Get($"{resource}@{rows}x{columns}.png")), rows, columns);
+                var textureBytes = GameBase.Game.Resources.Get($"{resource}@{rows}x{columns}.png");
+
+                if (textureBytes == null)
+                    return new List<Texture2D> { UserInterface.BlankBox };
+
+                return AssetLoader.LoadSpritesheetFromTexture(AssetLoader.LoadTexture2D(textureBytes), rows, columns);
             }
             catch (Exception e)
             {
@@ -778,6 +1133,9 @@ namespace Quaver.Shared.Skinning
             BackgroundPaths = new List<string>();
 
             string[] validExtensions = { ".png", ".jpg", ".jpeg" };
+            if (!Directory.Exists(backgroundFolder))
+                return;
+
             var files = Directory.GetFiles(backgroundFolder);
 
             foreach (var f in files)
@@ -867,30 +1225,42 @@ namespace Quaver.Shared.Skinning
                 {
                     var tex = (Texture2D)p.GetValue(this);
 
-                    if (!tex.IsDisposed)
+                    if (tex != null && !tex.IsDisposed)
                         tex.Dispose();
                 }
                 else if (p.PropertyType == typeof(AudioSample))
                 {
                     var sample = (AudioSample)p.GetValue(this);
 
-                    if (!sample.IsDisposed)
+                    if (sample != null && !sample.IsDisposed)
                         sample.Dispose();
                 }
                 else if (p.PropertyType == typeof(Texture2D[]))
                 {
                     var textureList = (Texture2D[])p.GetValue(this);
-                    textureList.ForEach(x => x.Dispose());
+                    textureList?.ForEach(x =>
+                    {
+                        if (x != null && !x.IsDisposed)
+                            x.Dispose();
+                    });
                 }
                 else if (p.PropertyType == typeof(List<Texture2D>))
                 {
                     var textureList = (List<Texture2D>)p.GetValue(this);
-                    textureList.ForEach(x => x.Dispose());
+                    textureList?.ForEach(x =>
+                    {
+                        if (x != null && !x.IsDisposed)
+                            x.Dispose();
+                    });
                 }
                 else if (p.PropertyType == typeof(List<AudioSample>))
                 {
                     var textureList = (List<AudioSample>)p.GetValue(this);
-                    textureList.ForEach(x => x.Dispose());
+                    textureList?.ForEach(x =>
+                    {
+                        if (x != null && !x.IsDisposed)
+                            x.Dispose();
+                    });
                 }
             }
 
@@ -903,7 +1273,7 @@ namespace Quaver.Shared.Skinning
 
                     var tex = (Texture2D)p.GetValue(mode);
 
-                    if (!tex.IsDisposed)
+                    if (tex != null && !tex.IsDisposed)
                         tex.Dispose();
                 }
             }

@@ -55,6 +55,8 @@ namespace Quaver.Shared.Assets
         fa_archive_black_box,
         fa_arrow_angle_pointing_down,
         fa_arrow_down_on_black_circular_background,
+        fa_arrow_down_short_wide,
+        fa_arrow_down_wide_short,
         fa_arrow_pointing_down,
         fa_arrow_pointing_right_in_a_circle,
         fa_arrow_pointing_to_left,
