@@ -10,6 +10,9 @@ using Wobble.Graphics.Sprites;
 using Wobble.Graphics.Sprites.Text;
 using Wobble.Graphics.UI.Form;
 using Wobble.Managers;
+using Wobble;
+using Wobble.Window;
+using Quaver.Shared.Skinning;
 
 namespace Quaver.Shared.Graphics.Overlays.Volume
 {
@@ -21,43 +24,38 @@ namespace Quaver.Shared.Graphics.Overlays.Volume
 
         /// <summary>
         /// </summary>
-        private Sprite Icon { get; set; }
+        public Slider Slider { get; private set; } = null!;
 
-        /// <summary>
-        /// </summary>
-        public Slider Slider { get; private set; }
+        private NineSliceSprite SliderBackground { get; set; } = null!;
+        private NineSliceSprite SliderActiveBackground { get; set; } = null!;
+        private VolumeThumbContainer ThumbContainer { get; set; } = null!;
 
-        /// <summary>
-        /// </summary>
-        private SpriteTextPlus Percentage { get; set; }
-
-        /// <summary>
-        /// </summary>
-        private SpriteTextPlus Name { get; set; }
-
-        /// <summary>
-        /// </summary>
-        private const int Spacing = 18;
 
         /// <summary>
         /// </summary>
         /// <param name="width"></param>
-        /// <param name="icon"></param>
-        /// <param name="name"></param>
         /// <param name="value"></param>
-        public VolumeControlSlider(float width, Texture2D icon, string name, BindableInt value)
+        public VolumeControlSlider(float width, BindableInt value)
         {
             BindedValue = value;
 
-            CreateIcon(icon);
             CreateSlider(width);
-            CreatePercentage();
-            CreateName(name);
 
-            Size = new ScalableVector2(0, Name.Height + -Name.Y + Percentage.Height);
+            Size = new ScalableVector2(width, 26);
 
             BindedValue.ValueChanged += OnValueChanged;
             BindedValue.TriggerChangeEvent();
+
+            SkinManager.SkinLoaded += OnSkinLoaded;
+        }
+
+        private void OnSkinLoaded(object? sender, SkinReloadedEventArgs e)
+        {
+            SliderBackground.Tint = SkinManager.Skin.VolumeController.VolumeSliderBackgroundColor;
+            SliderActiveBackground.Tint = SkinManager.Skin.VolumeController.VolumeSliderActiveColor;
+            
+            // Update selection state
+            Deselect();
         }
 
         /// <inheritdoc />
@@ -65,6 +63,7 @@ namespace Quaver.Shared.Graphics.Overlays.Volume
         /// </summary>
         public override void Destroy()
         {
+            SkinManager.SkinLoaded -= OnSkinLoaded;
             // ReSharper disable once DelegateSubtraction
             BindedValue.ValueChanged -= OnValueChanged;
             base.Destroy();
@@ -74,78 +73,151 @@ namespace Quaver.Shared.Graphics.Overlays.Volume
         /// </summary>
         public void Select()
         {
-            Icon.Tint = ColorHelper.HexToColor("#45D6F5");
-            Percentage.Tint = Icon.Tint;
+            SliderActiveBackground.Tint = SkinManager.Skin.VolumeController.VolumeHoverColor;
         }
 
         /// <summary>
         /// </summary>
         public void Deselect()
         {
-            Icon.Tint = Color.White;
-            Percentage.Tint = Color.White;
-        }
-
-        /// <summary>
-        /// </summary>
-        /// <param name="icon"></param>
-        private void CreateIcon(Texture2D icon)
-        {
-            Icon = new Sprite
-            {
-                Parent = this,
-                Alignment = Alignment.MidLeft,
-                Image = icon,
-                Size = new ScalableVector2(icon.Width, icon.Height)
-            };
+            SliderActiveBackground.Tint = SkinManager.Skin.VolumeController.VolumeSliderActiveColor;
         }
 
         /// <summary>
         /// </summary>
         private void CreateSlider(float width)
         {
-            var ballTexture = UserInterface.VolumeSliderProgressBall;
+            var ballTexture = UserInterface.BlankBox;
 
-            Slider = new Slider(BindedValue, new Vector2(width, 4), ballTexture)
+            // Base Background
+            SliderBackground = new NineSliceSprite(UserInterface.VolumeSliderElement, new SliceMargins(6, 6, 0, 0))
             {
                 Parent = this,
                 Alignment = Alignment.MidLeft,
-                X = Icon.X + Icon.Width + Spacing
+                X = 0,
+                Height = 26,
+                Width = width,
+                Tint = SkinManager.Skin.VolumeController.VolumeSliderBackgroundColor
             };
 
-            Slider.ActiveColor.Image = UserInterface.VolumeSliderActive;
-            Slider.Image = UserInterface.VolumeSliderInactive;
-        }
-
-        /// <summary>
-        /// </summary>
-        private void CreatePercentage()
-        {
-            Percentage = new SpriteTextPlus(FontManager.GetWobbleFont(Fonts.LatoBlack), "100%", 22)
+            ThumbContainer = new VolumeThumbContainer
             {
                 Parent = this,
                 Alignment = Alignment.MidLeft,
-                X = Slider.X + Slider.Width + Spacing
+                X = 0,
+                Height = 26,
+                Width = 0,
             };
-        }
 
-        /// <summary>
-        /// </summary>
-        /// <param name="name"></param>
-        private void CreateName(string name)
-        {
-            Name = new SpriteTextPlus(FontManager.GetWobbleFont(Fonts.LatoBlack), name.ToUpper(), 20)
+            // Active Background
+            SliderActiveBackground = new NineSliceSprite(UserInterface.VolumeSliderElement, new SliceMargins(6, 6, 0, 0))
             {
-                Parent = Slider,
-                Y = -36
+                Parent = ThumbContainer,
+                Alignment = Alignment.MidLeft,
+                X = 0,
+                Height = 26,
+                Width = 26,
+                Tint = SkinManager.Skin.VolumeController.VolumeSliderActiveColor,
+                UsePreviousSpriteBatchOptions = true,
             };
+
+            // Transparent Native Slider on top to capture input
+            Slider = new Slider(BindedValue, new Vector2(width, 26), ballTexture)
+            {
+                Parent = this,
+                Alignment = Alignment.MidLeft,
+                X = 0,
+                Image = UserInterface.BlankBox,
+                Tint = Color.Transparent,
+                IsSystemLayer = true
+            };
+
+            Slider.ActiveColor.Image = UserInterface.BlankBox;
+            Slider.ActiveColor.Tint = Color.Transparent;
+            Slider.ProgressBall.Tint = Color.Transparent; // Explicitly ensure the ball is transparent in case BlankBox draws white
         }
 
         /// <summary>
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
-        private void OnValueChanged(object sender, BindableValueChangedEventArgs<int> e)
-            => ScheduleUpdate(() => Percentage.Text = $"{e.Value}%");
+        private void OnValueChanged(object? sender, BindableValueChangedEventArgs<int> e)
+        {
+            if (SliderActiveBackground == null || ThumbContainer == null || BindedValue.MaxValue <= 0)
+                return;
+
+            float percentage = MathHelper.Clamp((float)e.Value / BindedValue.MaxValue, 0f, 1f);
+            float naturalWidth = SliderBackground.Width * percentage;
+
+            ThumbContainer.Visible = naturalWidth > 0;
+
+            if (ThumbContainer.Visible)
+            {
+                ThumbContainer.Width = naturalWidth;
+                SliderActiveBackground.Width = Math.Max(26f, naturalWidth);
+            }
+        }
+
+        /// <summary>
+        ///     Container used to crop the thumb when it's too small.
+        /// </summary>
+        private class VolumeThumbContainer : Sprite
+        {
+            /// <summary>
+            /// </summary>
+            public VolumeThumbContainer()
+            {
+                Image = UserInterface.BlankBox;
+                Tint = Color.Transparent;
+
+                SpriteBatchOptions = new SpriteBatchOptions
+                {
+                    SortMode = SpriteSortMode.Deferred,
+                    BlendState = BlendState.NonPremultiplied,
+                    RasterizerState = new RasterizerState
+                    {
+                        ScissorTestEnable = true,
+                        CullMode = CullMode.None,
+                    },
+                };
+            }
+
+            /// <inheritdoc />
+            public override void Draw(GameTime gameTime)
+            {
+                if (!Visible)
+                    return;
+
+                var currentRect = GameBase.Game.GraphicsDevice.ScissorRectangle;
+
+                var widthScale = (float)GameBase.Game.Graphics.PreferredBackBufferWidth / WindowManager.Width;
+                var heightScale = (float)GameBase.Game.Graphics.PreferredBackBufferHeight / WindowManager.Height;
+
+                var rect = new Rectangle()
+                {
+                    X = (int)(ScreenRectangle.X * widthScale),
+                    Y = (int)(ScreenRectangle.Y * heightScale),
+                    Width = (int)(ScreenRectangle.Width * widthScale),
+                    Height = (int)(ScreenRectangle.Height * heightScale),
+                };
+
+                // GraphicsDevice.ScissorRectangle must be within the backbuffer
+                var viewport = GameBase.Game.GraphicsDevice.Viewport;
+                rect.X = MathHelper.Clamp(rect.X, 0, viewport.Width);
+                rect.Y = MathHelper.Clamp(rect.Y, 0, viewport.Height);
+                rect.Width = MathHelper.Clamp(rect.Width, 0, viewport.Width - rect.X);
+                rect.Height = MathHelper.Clamp(rect.Height, 0, viewport.Height - rect.Y);
+
+                GameBase.Game.GraphicsDevice.ScissorRectangle = rect;
+
+                base.Draw(gameTime);
+
+                // EXPLICIT BATCH FLUSH: Ensures the scissor rectangle is applied to the deferred batch
+                // before we restore the previous scissor state.
+                GameBase.Game.TryEndBatch();
+
+                GameBase.Game.GraphicsDevice.ScissorRectangle = currentRect;
+            }
+        }
     }
 }

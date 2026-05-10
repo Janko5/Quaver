@@ -10,129 +10,285 @@ using Wobble.Bindables;
 using Wobble.Graphics;
 using Wobble.Graphics.Animations;
 using Wobble.Graphics.Sprites;
+using Wobble.Graphics.Sprites.Text;
 using Wobble.Graphics.UI.Buttons;
 using Wobble.Graphics.UI.Form;
 using Wobble.Input;
+using Quaver.Shared.Graphics.Components;
+using Wobble.Managers;
+using Wobble.Window;
 
 namespace Quaver.Shared.Graphics.Overlays.Volume
 {
-    public class VolumeControl : ImageButton
+    public class VolumeControl : Container
     {
-        /// <summary>
-        /// </summary>
-        private static int WIDTH { get; } = 512;
+        private static int PANEL_WIDTH { get; } = 510;
+        private static int PANEL_HEIGHT { get; } = 280;
 
-        /// <summary>
-        /// </summary>
-        private static float SliderScale { get; } = 0.73f;
+        private VolumeControlSwitchRow? FocusedRow { get; set; }
 
-        /// <summary>
-        /// </summary>
-        private VolumeControlSlider FocusedSlider { get; set; }
-
-        /// <summary>
-        /// </summary>
         public double TimeInactive { get; private set; } = 2500;
-
-        /// <summary>
-        ///     The time elapsed since the last volume change.
-        /// </summary>
         private double TimeElapsedSinceLastVolumeChange { get; set; } = 50;
 
         /// <summary>
+        ///     If the input focus is currently grabbed by this container.
         /// </summary>
-        public List<VolumeControlSlider> Sliders { get; } = new List<VolumeControlSlider>
-        {
-            new VolumeControlSlider(WIDTH * SliderScale, UserInterface.MasterVolumeIcon,
-                "Master", ConfigManager.VolumeGlobal),
+        private bool _isInputFocused;
 
-            new VolumeControlSlider(WIDTH * SliderScale, UserInterface.MusicVolumeIcon,
-                "Music", ConfigManager.VolumeMusic),
+        public bool IsManuallyToggled { get; set; }
 
-            new VolumeControlSlider(WIDTH * SliderScale, UserInterface.EffectVolumeIcon,
-                "Effect", ConfigManager.VolumeEffect),
-        };
+        public List<VolumeControlSwitchRow> Rows { get; }
 
-        /// <summary>
-        /// </summary>
-        public VolumeControl() : base(UserInterface.VolumeControllerPanel)
+        private Sprite BackgroundPanel { get; }
+        private NineSliceSprite? UniversalHeader { get; set; }
+        private NineSliceSprite? KeysoundsHeader { get; set; }
+        private ModifierSwitch? KeysoundsSwitch { get; set; }
+        private ImageButton DimScreen { get; }
+
+        public VolumeControl()
         {
             Alignment = Alignment.BotRight;
-            Size = new ScalableVector2(WIDTH, 216);
+            Size = new ScalableVector2(PANEL_WIDTH, PANEL_HEIGHT);
             X = Width + 50;
             Y = -95;
 
-            FocusedSlider = Sliders.First();
-            PositionSliders();
+            // Header Setup
+            var headerTexture = UserInterface.UniversalHeader;
+            if (headerTexture != null)
+            {
+                var headerText = new SpriteTextPlus(FontManager.GetWobbleFont(Fonts.InterBold), "Volume Controller", 22)
+                {
+                    Alignment = Alignment.MidCenter
+                };
+
+                UniversalHeader = new NineSliceSprite(headerTexture, new SliceMargins(20, 20, 0, 0))
+                {
+                    Parent = this,
+                    Alignment = Alignment.TopLeft,
+                    Y = -headerTexture.Height - 10,
+                    Width = headerText.Width + 20,
+                    Height = headerTexture.Height,
+                    Tint = SkinManager.Skin.VolumeController.VolumeControllerHeaderColor
+                };
+
+                headerText.Parent = UniversalHeader;
+            }
+
+            // Keysounds Header Setup
+            if (headerTexture != null)
+            {
+                var keysoundsText = new SpriteTextPlus(FontManager.GetWobbleFont(Fonts.InterBold), "Keysounds", 22)
+                {
+                    Alignment = Alignment.MidLeft,
+                    X = 10
+                };
+
+                KeysoundsHeader = new NineSliceSprite(headerTexture, new SliceMargins(20, 20, 0, 0))
+                {
+                    Parent = this,
+                    Alignment = Alignment.TopRight,
+                    Y = UniversalHeader?.Y ?? -70,
+                    Width = keysoundsText.Width + 105,
+                    Height = headerTexture.Height,
+                    Tint = SkinManager.Skin.VolumeController.VolumeControllerHeaderColor
+                };
+
+                keysoundsText.Parent = KeysoundsHeader;
+
+                KeysoundsSwitch = new ModifierSwitch(ConfigManager.EnableKeysounds.Value, isOn =>
+                {
+                    ConfigManager.EnableKeysounds.Value = isOn;
+                    ConfigManager.EnableHitsounds.Value = !isOn;
+                })
+                {
+                    Parent = KeysoundsHeader,
+                    Alignment = Alignment.MidRight,
+                    X = -10,
+                    Size = new ScalableVector2(70, 24)
+                };
+
+                ConfigManager.EnableKeysounds.ValueChanged += OnEnableKeysoundsChanged;
+            }
+
+            // Main Panel Setup
+            BackgroundPanel = new Sprite
+            {
+                Parent = this,
+                Alignment = Alignment.TopCenter,
+                Size = new ScalableVector2(PANEL_WIDTH, PANEL_HEIGHT),
+                Image = UserInterface.VolumeControllerPanel,
+                Tint = SkinManager.Skin.VolumeController.VolumeControllerBackgroundColor
+            };
+
+            // Dim Screen
+            DimScreen = new ImageButton(WobbleAssets.WhiteBox, (sender, args) => { IsManuallyToggled = false; TimeInactive = 2500; })
+            {
+                Parent = this,
+                Tint = Color.Black,
+                Alpha = 0f,
+                Visible = false,
+                IsClickable = false,
+                Size = new ScalableVector2(WindowManager.Width, WindowManager.Height - 100)
+            };
+            Children.Remove(DimScreen);
+            Children.Insert(0, DimScreen);
+
+            Rows = new()
+            {
+                new("Master", UserInterface.VolumeIconMaster, new(32, 26), new(405, ConfigManager.VolumeGlobal)),
+                new("Music", UserInterface.VolumeIconMusic, new(26, 26), new(405, ConfigManager.VolumeMusic)),
+                new("Effects", UserInterface.VolumeIconEffect, new(30, 26), new(405, ConfigManager.VolumeEffect))
+            };
+
+            PositionRows();
+
+            SkinManager.SkinLoaded += OnSkinLoaded;
         }
 
-        /// <summary>
-        /// </summary>
-        /// <param name="gameTime"></param>
+        private void OnSkinLoaded(object? sender, SkinReloadedEventArgs e)
+        {
+            if (UniversalHeader != null)
+                UniversalHeader.Tint = SkinManager.Skin.VolumeController.VolumeControllerHeaderColor;
+
+            if (KeysoundsHeader != null)
+                KeysoundsHeader.Tint = SkinManager.Skin.VolumeController.VolumeControllerHeaderColor;
+
+            BackgroundPanel.Tint = SkinManager.Skin.VolumeController.VolumeControllerBackgroundColor;
+        }
+
+        private void OnEnableKeysoundsChanged(object? sender, BindableValueChangedEventArgs<bool> e)
+        {
+            if (KeysoundsSwitch != null && KeysoundsSwitch.IsOn != e.Value)
+                KeysoundsSwitch.Toggle();
+        }
+
+        /// <inheritdoc />
+        public override void Destroy()
+        {
+            DimScreen?.Destroy();
+            SkinManager.SkinLoaded -= OnSkinLoaded;
+            ConfigManager.EnableKeysounds.ValueChanged -= OnEnableKeysoundsChanged;
+
+            base.Destroy();
+        }
+
         public override void Update(GameTime gameTime)
         {
             TimeElapsedSinceLastVolumeChange += gameTime.ElapsedGameTime.TotalMilliseconds;
             TimeInactive += gameTime.ElapsedGameTime.TotalMilliseconds;
 
-            HandleInput(gameTime);
+            base.Update(gameTime);
+
+            HandleInput();
             HandleSliderColorChanges();
 
-            if (TimeInactive >= 800 && Animations.Count == 0 && X < 0)
+            if (!IsManuallyToggled && TimeInactive >= 800 && Animations.Count == 0 && X < 0)
                 MoveToX(Width + 50, Easing.OutQuint, 450);
-            else if (TimeInactive == 0f && Animations.Count == 0 && X > 0)
+            else if (!IsManuallyToggled && TimeInactive == 0f && Animations.Count == 0 && X > 0)
                 MoveToX(-30, Easing.OutQuint, 450);
 
-            if (X > 0)
-                FocusedSlider = Sliders.First();
+            if (X > 0 && Rows.Count > 0)
+                FocusedRow = Rows.First();
 
-            base.Update(gameTime);
+            if (DimScreen != null)
+            {
+                var borderHeight = Quaver.Shared.Graphics.Menu.Border.MenuBorder.HEIGHT;
+                DimScreen.Size = new ScalableVector2(WindowManager.Width, WindowManager.Height - borderHeight * 2);
+                DimScreen.X = -AbsolutePosition.X;
+                DimScreen.Y = -AbsolutePosition.Y + borderHeight;
+                
+                float fullyHiddenX = Width + 50;
+                float fullyVisibleX = -30;
+                float percentVisible = 1f - MathHelper.Clamp((X - fullyVisibleX) / (fullyHiddenX - fullyVisibleX), 0f, 1f);
+                
+                DimScreen.Alpha = 0.85f * percentVisible;
+                DimScreen.Visible = percentVisible > 0.01f;
+                DimScreen.IsClickable = DimScreen.Visible;
+
+                // Handle InputStack focus
+                if (IsManuallyToggled && DimScreen.Visible && !_isInputFocused)
+                {
+                    Wobble.Graphics.UI.Buttons.ButtonManager.PushInputRoot(this);
+                    _isInputFocused = true;
+                }
+                else if ((!IsManuallyToggled || !DimScreen.Visible) && _isInputFocused)
+                {
+                    Wobble.Graphics.UI.Buttons.ButtonManager.PopInputRoot();
+                    _isInputFocused = false;
+                }
+            }
         }
 
-        /// <summary>
-        /// </summary>
-        private void PositionSliders()
+        public void ToggleManual()
         {
-            for (var i = 0; i < Sliders.Count; i++)
+            if (X < 10)
             {
-                var slider = Sliders[i];
+                IsManuallyToggled = false;
+                TimeInactive = 2500;
+            }
+            else
+            {
+                IsManuallyToggled = true;
+                TimeInactive = 0;
+                MoveToX(-30, Easing.OutQuint, 450);
+            }
+        }
 
-                slider.Parent = this;
-                slider.X = 16;
+        private void PositionRows()
+        {
+            for (var i = 0; i < Rows.Count; i++)
+            {
+                var row = Rows[i];
+                row.Parent = BackgroundPanel;
+                row.X = 15;
 
                 if (i == 0)
                 {
-                    slider.Y = 16;
+                    row.Y = 13;
                     continue;
                 }
 
-                var previous = Sliders[i - 1];
-                slider.Y = previous.Y + previous.Height - 14;
+                var previous = Rows[i - 1];
+                row.Y = previous.Y + previous.Height + 10;
             }
         }
 
-        /// <summary>
-        /// </summary>
-        private void HandleInput(GameTime gameTime)
+        private void HandleInput()
         {
-            // Dictate which slider is the one that is currently focused.
             SetFocusedSlider();
 
-            // Require either alt key to be pressed when changing volume.
-            if (!KeyboardManager.CurrentState.IsKeyDown(Keys.LeftAlt) && !KeyboardManager.CurrentState.IsKeyDown(Keys.RightAlt))
+            var isAltHeld = KeyboardManager.CurrentState.IsKeyDown(Keys.LeftAlt) || KeyboardManager.CurrentState.IsKeyDown(Keys.RightAlt);
+
+            // Check for hovered row - verify mouse is within row bounds
+            var hoveredRow = Rows.Find(x => GraphicsHelper.RectangleContains(x.ScreenRectangle, MouseManager.CurrentState.Position));
+
+            if (MouseManager.IsScrolling)
+            {
+                // Capture direction BEFORE consuming
+                var scrolledUp = MouseManager.IsScrollingUp(ConfigManager.InvertScrolling.Value);
+                var scrolledDown = MouseManager.IsScrollingDown(ConfigManager.InvertScrolling.Value);
+
+                if (hoveredRow != null || isAltHeld)
+                {
+                    TimeInactive = 0;
+                    MouseManager.ConsumeScroll();
+
+                    if (scrolledUp)
+                        UpdateVolume(5);
+                    else if (scrolledDown)
+                        UpdateVolume(-5);
+                }
+            }
+
+            // Keyboard and arrows still require Alt
+            if (!isAltHeld)
                 return;
 
-            // Activate the volume control box.
             if (KeyboardManager.IsUniqueKeyPress(Keys.Up) || KeyboardManager.IsUniqueKeyPress(Keys.Down) ||
-                KeyboardManager.IsUniqueKeyPress(Keys.Left) || KeyboardManager.IsUniqueKeyPress(Keys.Right)
-                || MouseManager.IsScrolling)
+                KeyboardManager.IsUniqueKeyPress(Keys.Left) || KeyboardManager.IsUniqueKeyPress(Keys.Right))
             {
                 TimeInactive = 0;
             }
-
-            if (MouseManager.IsScrollingUp(ConfigManager.InvertScrolling.Value))
-                UpdateVolume(5);
-            else if (MouseManager.IsScrollingDown(ConfigManager.InvertScrolling.Value))
-                UpdateVolume(-5);
 
             if (KeyboardManager.CurrentState.IsKeyDown(Keys.Right))
             {
@@ -146,87 +302,70 @@ namespace Quaver.Shared.Graphics.Overlays.Volume
             }
         }
 
-        /// <summary>
-        ///     Sets the currently focused slider out of our list of sliders.
-        ///     The default focused slider is the master volume.
-        /// </summary>
         private void SetFocusedSlider()
         {
-            // A slider with the mouse currently hovered over it takes precedence over
-            // any other action. That is automatically the focused slider.
-            var focused = Sliders.Find(x => x.Slider.MouseInHoldSequence) ?? Sliders.Find(x => x.Slider.IsHovered);
+            var focused = Rows.Find(x => x.SliderControl.Slider.MouseInHoldSequence) ?? Rows.Find(x => Wobble.Graphics.GraphicsHelper.RectangleContains(x.ScreenRectangle, MouseManager.CurrentState.Position) || x.SliderControl.Slider.IsHovered);
 
             if (focused != null && X <= 0)
             {
-                FocusedSlider = focused;
+                FocusedRow = focused;
                 TimeInactive = 0;
             }
 
-            // If the user pressed the up key when determine the focused slider,
-            // it becomes the one above. (If first in the list, it becomes the last.)
             if (KeyboardManager.IsUniqueKeyPress(Keys.Up) && (KeyboardManager.CurrentState.IsKeyDown(Keys.LeftAlt) || KeyboardManager.CurrentState.IsKeyDown(Keys.RightAlt)))
             {
-                // Play hover sound effect
-                SkinManager.Skin?.SoundHover?.CreateChannel()?.Play();
+                if (FocusedRow == null) return;
 
-                // Reset inactive timer.
+                SkinManager.Skin?.SoundHover?.CreateChannel()?.Play();
                 TimeInactive = 0;
 
-                // If the focused slider is the first one in the list, we set it to the last.
-                if (FocusedSlider == Sliders.First())
+                if (FocusedRow == Rows.First())
                 {
-                    FocusedSlider = Sliders.Last();
+                    FocusedRow = Rows.Last();
                     return;
                 }
 
-                // Otherwise, just set the focused to the previous in the list.
-                var index = Sliders.IndexOf(FocusedSlider);
-                FocusedSlider = Sliders[index - 1];
+                var index = Rows.IndexOf(FocusedRow);
+                FocusedRow = Rows[index - 1];
                 return;
             }
 
-            // If the user presses the down key, we switch the focused slider to the
             if (KeyboardManager.IsUniqueKeyPress(Keys.Down) && (KeyboardManager.CurrentState.IsKeyDown(Keys.LeftAlt) || KeyboardManager.CurrentState.IsKeyDown(Keys.RightAlt)))
             {
-                // Play hover sound effect
-                SkinManager.Skin?.SoundHover?.CreateChannel()?.Play();
+                if (FocusedRow == null) return;
 
-                // Reset inactive timer.
+                SkinManager.Skin?.SoundHover?.CreateChannel()?.Play();
                 TimeInactive = 0;
 
-                // If the focused slider is the last one in the list, we set it to the first.
-                if (FocusedSlider == Sliders.Last())
+                if (FocusedRow == Rows.Last())
                 {
-                    FocusedSlider = Sliders.First();
+                    FocusedRow = Rows.First();
                     return;
                 }
 
-                var index = Sliders.IndexOf(FocusedSlider);
-                FocusedSlider = Sliders[index + 1];
+                var index = Rows.IndexOf(FocusedRow);
+                FocusedRow = Rows[index + 1];
             }
         }
 
-        /// <summary>
-        ///     Responsible for updating the sound of the focused slider.
-        /// </summary>
-        /// <param name="amount"></param>
         private void UpdateVolume(int amount)
         {
-            FocusedSlider.BindedValue.Value += amount;
+            if (FocusedRow == null)
+                return;
+
+            FocusedRow.SliderControl.BindedValue.Value += amount;
             TimeInactive = 0;
             TimeElapsedSinceLastVolumeChange = 0;
         }
 
-        /// <summary>
-        /// </summary>
         private void HandleSliderColorChanges()
         {
-            for (var i = 0; i < Sliders.Count; i++)
+            for (var i = 0; i < Rows.Count; i++)
             {
-                if (Sliders[i] == FocusedSlider)
-                    Sliders[i].Select();
+                if (Rows[i] == FocusedRow)
+                    Rows[i].Select();
                 else
-                    Sliders[i].Deselect();
+                    Rows[i].Deselect();
             }
         }
     }
