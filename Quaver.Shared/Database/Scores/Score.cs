@@ -298,72 +298,6 @@ namespace Quaver.Shared.Database.Scores
         }
 
         /// <summary>
-        ///     Converts an OnlineScoreboardScore to a local score.
-        /// </summary>
-        /// <param name="score"></param>
-        /// <returns></returns>
-        public static Score FromOnlineScoreboardScore(OnlineScoreboardScore score)
-        {
-            // Unix timestamp is seconds past epoch
-            var dtDateTime = new DateTime(1970, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc);
-            dtDateTime = dtDateTime.AddSeconds(score.Timestamp / 1000f).ToLocalTime();
-
-            var localScore = new Score()
-            {
-                IsOnline = true,
-                Id = score.Id,
-                PlayerId = score.UserId,
-                SteamId = score.SteamId,
-                MapMd5 = score.MapMd5,
-                Name = score.Username,
-                DateTime = dtDateTime.ToString(CultureInfo.InvariantCulture),
-                Mode = score.Mode,
-                TotalScore = score.TotalScore,
-                PerformanceRating = score.PerformanceRating,
-                Grade = GradeHelper.GetGradeFromAccuracy((float)score.Accuracy),
-                Accuracy = score.Accuracy,
-                MaxCombo = score.MaxCombo,
-                CountMarv = score.CountMarv,
-                CountPerf = score.CountPerf,
-                CountGreat = score.CountGreat,
-                CountGood = score.CountGood,
-                CountOkay = score.CountOkay,
-                CountMiss = score.CountMiss,
-                Mods = (long)score.Mods,
-                Country = score.Country
-            };
-
-            if (score.Hits == null)
-                return localScore;
-
-            localScore.OnlineJudgements = new List<Judgement>();
-            var processor = new ScoreProcessorKeys(new Qua(), score.Mods);
-
-            foreach (var hit in score.Hits)
-            {
-                var split = hit.Split("L");
-                var deviance = int.Parse(split[0]);
-
-                // Early miss
-                if (deviance == int.MinValue)
-                {
-                    localScore.OnlineJudgements.Add(Judgement.Miss);
-                    continue;
-                }
-
-                var judgement = processor.CalculateScore(deviance,
-                    hit.Contains("L") ? KeyPressType.Release : KeyPressType.Press, isMine: false);
-
-                if (judgement == Judgement.Ghost)
-                    continue;
-
-                localScore.OnlineJudgements.Add(judgement);
-            }
-
-            return localScore;
-        }
-
-        /// <summary>
         ///     Converts the score object into a blank replay.
         /// </summary>
         /// <returns></returns>
@@ -414,6 +348,65 @@ namespace Quaver.Shared.Database.Scores
             }
 
             return replay;
+        }
+
+        /// <summary>
+        ///     Converts a ScoreV2 to a local score.
+        /// </summary>
+        /// <param name="score"></param>
+        /// <param name="md5"></param>
+        /// <returns></returns>
+        public static Score FromScoreV2(ScoreV2 score, string md5)
+        {
+            return new Score()
+            {
+                IsOnline = true,
+                Id = score.Id,
+                PlayerId = score.UserId,
+                SteamId = long.TryParse(score.User?.SteamId ?? "0", out var sid) ? sid : 0,
+                MapMd5 = md5,
+                Name = score.User?.Username ?? "",
+                DateTime = score.Timestamp.ToLocalTime().ToString(CultureInfo.InvariantCulture),
+                Mode = score.Mode,
+                TotalScore = score.TotalScore,
+                PerformanceRating = score.PerformanceRating,
+                Grade = GradeHelper.GetGradeFromAccuracy((float)score.Accuracy),
+                Accuracy = score.Accuracy,
+                MaxCombo = score.MaxCombo,
+                CountMarv = score.CountMarvelous,
+                CountPerf = score.CountPerfect,
+                CountGreat = score.CountGreat,
+                CountGood = score.CountGood,
+                CountOkay = score.CountOkay,
+                CountMiss = score.CountMiss,
+                Mods = score.Modifiers,
+                Country = score.User?.Country ?? ""
+            };
+        }
+
+        /// <summary>
+        ///     Converts a ClanScore to a local score.
+        /// </summary>
+        /// <param name="score"></param>
+        /// <param name="md5"></param>
+        /// <returns></returns>
+        public static Score FromClanScore(ClanScore score, string md5)
+        {
+            return new Score()
+            {
+                IsOnline = true,
+                Id = score.Id,
+                PlayerId = score.Clan?.Id ?? 0,
+                SteamId = -1,
+                MapMd5 = md5,
+                Name = score.Clan != null ? $"[{score.Clan.Tag}] {score.Clan.Name}" : "Unknown Clan",
+                DateTime = score.Timestamp.ToLocalTime().ToString(CultureInfo.InvariantCulture),
+                TotalScore = -1,
+                PerformanceRating = score.OverallRating,
+                Grade = GradeHelper.GetGradeFromAccuracy((float)score.OverallAccuracy),
+                Accuracy = score.OverallAccuracy,
+                Country = ""
+            };
         }
     }
 }

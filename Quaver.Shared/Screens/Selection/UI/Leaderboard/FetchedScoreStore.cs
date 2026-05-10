@@ -13,9 +13,9 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard
     public struct FetchedScoreStore
     {
         public List<Score> Scores { get; }
-        public Score PersonalBest { get; }
+        public Score? PersonalBest { get; }
 
-        public FetchedScoreStore(List<Score> scores, Score personalBest = null)
+        public FetchedScoreStore(List<Score> scores, Score? personalBest = null)
         {
             Scores = scores;
             PersonalBest = personalBest;

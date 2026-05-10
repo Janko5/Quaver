@@ -16,7 +16,6 @@ using Quaver.Shared.Modifiers;
 using Quaver.Shared.Online;
 using Quaver.Shared.Screens.Selection.UI.Leaderboard.Components;
 using Quaver.Shared.Screens.Selection.UI.Leaderboard.Rankings;
-using Quaver.Shared.Screens.Selection.UI.Leaderboard.Rankings.Quaver.Shared.Screens.Selection.UI.Leaderboard.Rankings;
 using Quaver.Shared.Skinning;
 using Wobble.Bindables;
 using Wobble.Graphics;
@@ -36,6 +35,11 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard
         ///     Displays "LEADERBOARD"
         /// </summary>
         private SpriteTextPlus Header { get; set; }
+
+        /// <summary>
+        ///     Whether the leaderboard is using the V2 layout.
+        /// </summary>
+        public bool IsV2 => SkinManager.Skin?.UserInterfaceVersion >= 2f;
 
         /// <summary>
         ///     Allows the user to select between different leaderboard types
@@ -81,7 +85,7 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard
         /// </summary>
         public LeaderboardContainer()
         {
-            Size = new ScalableVector2(564, 838);
+            Size = IsV2 ? new ScalableVector2(725, 860) : new ScalableVector2(564, 838);
             Alpha = 0f;
             AutoScaleHeight = true;
 
@@ -96,7 +100,8 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard
             CreateTrophy();
             CreatePersonalBestRank();
 
-            ListHelper.Swap(Children, Children.IndexOf(TypeDropdown), Children.IndexOf(ScoresContainerBackground));
+            if (!IsV2)
+                ListHelper.Swap(Children, Children.IndexOf(TypeDropdown), Children.IndexOf(ScoresContainerBackground));
 
             MapManager.Selected.ValueChanged += OnMapChanged;
 
@@ -110,8 +115,6 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard
             OnlineManager.Status.ValueChanged += OnConnectionStatusChanged;
             ScoreDatabaseCache.ScoreDeleted += OnScoreDeleted;
             ScoreDatabaseCache.LocalMapScoresDeleted += OnMapLocalScoresDeleted;
-
-            FetchScores();
         }
 
         /// <inheritdoc />
@@ -151,11 +154,12 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard
         /// </summary>
         private void CreateHeaderText()
         {
-            Header = new SpriteTextPlus(FontManager.GetWobbleFont(Fonts.LatoHeavy), "LEADERBOARD", 30)
+            Header = new SpriteTextPlus(FontManager.GetWobbleFont(Fonts.InterBold), "LEADERBOARD", 30)
             {
                 Parent = this,
                 Alignment = Alignment.TopLeft,
-                Tint = SkinManager.Skin?.SongSelect?.LeaderboardTitleColor ?? Color.White
+                Tint = SkinManager.Skin.SongSelect.LeaderboardTitleColor,
+                Visible = !IsV2
             };
         }
 
@@ -164,11 +168,11 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard
         /// </summary>
         private void CreateRankingDropdown()
         {
-            TypeDropdown = new LeaderboardTypeDropdown
+            TypeDropdown = new LeaderboardTypeDropdown(IsV2)
             {
                 Parent = this,
                 Alignment = Alignment.TopRight,
-                Y = Header.Y / 2f
+                Y = 0
             };
         }
 
@@ -181,17 +185,29 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard
             {
                 Parent = this,
                 Alignment = Alignment.TopLeft,
-                Y = Header.Y + Header.Height + 8,
-                Size = new ScalableVector2(Width,664),
-                Image = SkinManager.Skin?.SongSelect?.LeaderboardPanel ?? UserInterface.LeaderboardScoresPanel,
+                X = IsV2 ? 0 : 0,
+                Y = IsV2 ? 0 : Header.Y + Header.Height + 8,
+                Size = IsV2 ? new ScalableVector2(725, 700) : new ScalableVector2(Width, 664),
+                Image = SkinManager.Skin?.SongSelect?.LeaderboardPanel ?? UserInterface.LeaderboardPanel,
                 AutoScaleHeight = true
             };
 
             ScoresContainer = new LeaderboardScoresContainer(this)
             {
                 Parent = ScoresContainerBackground,
-                Alignment = Alignment.MidCenter,
+                Alignment = IsV2 ? Alignment.TopLeft : Alignment.MidCenter,
+                X = IsV2 ? 10 : 0,
+                Y = IsV2 ? 60 : 0
             };
+
+            // V2: reparent dropdown into panel
+            if (IsV2)
+            {
+                TypeDropdown.Parent = ScoresContainerBackground;
+                TypeDropdown.Alignment = Alignment.TopRight;
+                TypeDropdown.X = -10;
+                TypeDropdown.Y = 10;
+            }
         }
 
         /// <summary>
@@ -203,7 +219,8 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard
             {
                 Parent = this,
                 Y = ScoresContainerBackground.Y + ScoresContainerBackground.Height + 28,
-                Tint = SkinManager.Skin?.SongSelect?.PersonalBestTitleColor ?? Color.White
+                Tint = SkinManager.Skin.SongSelect.PersonalBestTitleColor,
+                Visible = !IsV2
             };
         }
 
@@ -214,11 +231,11 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard
             PersonalBestTrophy = new Sprite
             {
                 Parent = this,
-                Y = PersonalBestHeader.Y + 2,
-                Alignment = Alignment.TopRight,
-                Size = new ScalableVector2(25, 25),
-                Image = FontAwesome.Get(FontAwesomeIcon.fa_trophy),
-                Tint = SkinManager.Skin?.SongSelect?.PersonalBestTrophyColor ?? ColorHelper.HexToColor("#E9B736"),
+                Y = IsV2 ? PersonalBestScore.Y + 5 : PersonalBestHeader.Y + 4,
+                Alignment = Alignment.TopLeft,
+                X = IsV2 ? 645 : 484,
+                Size = new ScalableVector2(22, 20),
+                Image = UserInterface.SongSelectTrophy,
                 Alpha = 0
             };
         }
@@ -230,10 +247,11 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard
             PersonalBestRank = new SpriteTextPlus(Header.Font, "#50", Header.FontSize - 2)
             {
                 Parent = this,
-                Y = PersonalBestTrophy.Y - 3,
-                Alignment = Alignment.TopRight,
+                Y = IsV2 ? PersonalBestTrophy.Y - 3 : PersonalBestTrophy.Y - 2,
+                Alignment = Alignment.TopLeft,
+                X = IsV2 ? 673 : 484,
                 Alpha = 0,
-                Tint = SkinManager.Skin?.SongSelect?.PersonalBestRankColor ?? Color.White
+                Tint = SkinManager.Skin.SongSelect.PersonalBestRankColor
             };
         }
 
@@ -245,7 +263,8 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard
             PersonalBestScore = new LeaderboardPersonalBestScore(this)
             {
                 Parent = this,
-                Y = PersonalBestHeader.Y + PersonalBestHeader.Height + 6
+                X = IsV2 ? 0 : 0,
+                Y = IsV2 ? ScoresContainerBackground.Y + ScoresContainerBackground.Height + 10 : PersonalBestHeader.Y + PersonalBestHeader.Height + 6
             };
         }
 
@@ -254,11 +273,13 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard
         /// </summary>
         public void FetchScores()
         {
-            if (MapManager.Selected.Value != null)
-                MapManager.Selected.Value.NeedsOnlineUpdate = false;
+            var map = MapManager.Selected.Value;
+            if (map != null)
+                map.NeedsOnlineUpdate = false;
 
-            StopLoading();
-            FetchScoreTask.Run(MapManager.Selected.Value, 400);
+            if (map != null)
+                FetchScoreTask.Run(map, 250);
+            
             StartLoading();
         }
 
@@ -271,33 +292,34 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard
             if (map == null)
                 return new FetchedScoreStore(new List<Score>());
 
+            var sw = System.Diagnostics.Stopwatch.StartNew();
             FetchedScoreStore scores;
 
             switch (ConfigManager.LeaderboardSection.Value)
             {
                 case LeaderboardType.Local:
-                    scores = new ScoreFetcherLocal().Fetch(map);
+                    scores = new ScoreFetcherLocal().Fetch(map, token);
                     break;
                 case LeaderboardType.Global:
-                    scores = new ScoreFetcherGlobal().Fetch(map);
+                    scores = new ScoreFetcherGlobal().Fetch(map, token);
                     break;
                 case LeaderboardType.Mods:
-                    scores = new ScoreFetcherMods().Fetch(map);
+                    scores = new ScoreFetcherMods().Fetch(map, token);
                     break;
                 case LeaderboardType.Country:
-                    scores = new ScoreFetcherCountry().Fetch(map);
+                    scores = new ScoreFetcherCountry().Fetch(map, token);
                     break;
                 case LeaderboardType.Rate:
-                    scores = new ScoreFetcherRate().Fetch(map);
+                    scores = new ScoreFetcherRate().Fetch(map, token);
                     break;
                 case LeaderboardType.Friends:
-                    scores = new ScoreFetcherFriends().Fetch(map);
+                    scores = new ScoreFetcherFriends().Fetch(map, token);
                     break;
                 case LeaderboardType.All:
-                    scores = new ScoreFetcherAll().Fetch(map);
+                    scores = new ScoreFetcherAll().Fetch(map, token);
                     break;
                 case LeaderboardType.Clan:
-                    scores = new ScoreFetcherClan().Fetch(map);
+                    scores = new ScoreFetcherClan().Fetch(map, token);
                     break;
                 default:
                     scores = new FetchedScoreStore();
@@ -311,6 +333,8 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard
             MapManager.Selected.Value.Scores.Value = scores.Scores;
             ScoresHelper.SetRatingProcessors(MapManager.Selected.Value.Scores.Value);
 
+            sw.Stop();
+
             return scores;
         }
 
@@ -319,18 +343,24 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
-        private void OnFetchedScores(object sender, TaskCompleteEventArgs<Map, FetchedScoreStore> e)
+        private void OnFetchedScores(object? sender, TaskCompleteEventArgs<Map, FetchedScoreStore> e)
         {
+            if (e.Input != MapManager.Selected.Value)
+            {
+                Logger.Important($"Discarding stale leaderboard scores for map: {e.Input}. Current selection: {MapManager.Selected.Value}", LogType.Runtime);
+                return;
+            }
+
             Logger.Debug($"Fetched {e.Result.Scores?.Count} {ConfigManager.LeaderboardSection?.Value} scores for map: {e.Input} | " +
                          $"Has PB: {e.Result.PersonalBest != null}", LogType.Runtime);
 
             StopLoading();
 
-            Children.ForEach(x =>
+            foreach (var x in new List<Drawable>(Children))
             {
                 if (x is IFetchedScoreHandler handler)
                     handler.HandleFetchedScores(e.Input, e.Result);
-            });
+            }
 
             ScoresContainer.HandleFetchedScores(e.Input, e.Result);
 
@@ -338,17 +368,21 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard
             PersonalBestRank.ClearAnimations();
 
             // Handle personal best rank
-            if (ConfigManager.LeaderboardSection != null && ConfigManager.LeaderboardSection.Value != LeaderboardType.Local)
+            if (!IsV2 && ConfigManager.LeaderboardSection != null && ConfigManager.LeaderboardSection.Value != LeaderboardType.Local)
             {
                 var rank = e.Result.Scores?.FindIndex(x => x.Name == e.Result.PersonalBest?.Name);
 
                 if (rank == -1)
                     return;
 
-                PersonalBestRank.Text = $"#{rank + 1} of Top {e.Result.Scores?.Count}";
-                PersonalBestTrophy.X = -PersonalBestRank.Width - 10;
+                var count = e.Result.Scores?.Count ?? 0;
+                PersonalBestRank.Text = $"#{rank + 1} of #{count}";
 
-                const int animTime = 250;
+                // Right-align the group [trophy | 4px | rank text] to the panel's right edge
+                PersonalBestRank.X = Width - PersonalBestRank.Width;
+                PersonalBestTrophy.X = PersonalBestRank.X - PersonalBestTrophy.Width - 4;
+
+                const int animTime = 150;
                 PersonalBestTrophy.FadeTo(1, Easing.Linear, animTime);
                 PersonalBestRank.FadeTo(1, Easing.Linear, animTime);
             }
@@ -359,14 +393,8 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
-        private void OnMapChanged(object sender, BindableValueChangedEventArgs<Map> e)
+        private void OnMapChanged(object? sender, BindableValueChangedEventArgs<Map> e)
         {
-            ScheduleUpdate(() =>
-            {
-                e.OldValue?.ClearScores();
-                e.Value?.ClearScores();
-            });
-
             FetchScores();
         }
 
@@ -375,14 +403,14 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
-        private void OnLeaderboardSectionChanged(object sender, BindableValueChangedEventArgs<LeaderboardType> e) => FetchScores();
+        private void OnLeaderboardSectionChanged(object? sender, BindableValueChangedEventArgs<LeaderboardType> e) => FetchScores();
 
         /// <summary>
         ///     Called when the user changes the option to display failed local scores
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
-        private void OnDisplayFailedLocalScoresChanged(object sender, BindableValueChangedEventArgs<bool> e)
+        private void OnDisplayFailedLocalScoresChanged(object? sender, BindableValueChangedEventArgs<bool> e)
         {
             if (ConfigManager.LeaderboardSection == null || ConfigManager.LeaderboardSection.Value != LeaderboardType.Local)
                 return;
@@ -395,7 +423,7 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
-        private void OnModsChanged(object sender, ModsChangedEventArgs e)
+        private void OnModsChanged(object? sender, ModsChangedEventArgs e)
         {
             if (ConfigManager.LeaderboardSection == null ||
                 ConfigManager.LeaderboardSection.Value != LeaderboardType.Mods && ConfigManager.LeaderboardSection.Value != LeaderboardType.Rate)
@@ -412,17 +440,17 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard
             {
                 if (x is ILoadable loadable)
                     loadable.StartLoading();
-
-                ScoresContainer.StartLoading();
-
-                const int animTime = 20;
-
-                PersonalBestTrophy.ClearAnimations();
-                PersonalBestTrophy.FadeTo(0, Easing.Linear, animTime);
-
-                PersonalBestRank.ClearAnimations();
-                PersonalBestRank.FadeTo(0, Easing.Linear, animTime);
             }
+
+            ScoresContainer.StartLoading();
+
+            const int animTime = 150;
+
+            PersonalBestTrophy.ClearAnimations();
+            PersonalBestTrophy.FadeTo(0, Easing.Linear, animTime);
+
+            PersonalBestRank.ClearAnimations();
+            PersonalBestRank.FadeTo(0, Easing.Linear, animTime);
         }
 
         /// <summary>
@@ -433,9 +461,9 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard
             {
                 if (x is ILoadable loadable)
                     loadable.StopLoading();
-
-                ScoresContainer.StopLoading();
             }
+
+            ScoresContainer.StopLoading();
         }
 
         /// <summary>
@@ -443,7 +471,7 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
-        private void OnConnectionStatusChanged(object sender, BindableValueChangedEventArgs<ConnectionStatus> e)
+        private void OnConnectionStatusChanged(object? sender, BindableValueChangedEventArgs<ConnectionStatus> e)
         {
             if (e.Value != ConnectionStatus.Connected || ConfigManager.LeaderboardSection.Value == LeaderboardType.Local)
                 return;
@@ -457,7 +485,7 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
-        private void OnScoreDeleted(object sender, ScoreDeletedEventArgs e)
+        private void OnScoreDeleted(object? sender, ScoreDeletedEventArgs e)
         {
             if (ConfigManager.LeaderboardSection == null || ConfigManager.LeaderboardSection.Value != LeaderboardType.Local)
                 return;
@@ -466,11 +494,11 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard
         }
 
         /// <summary>
-         ///     Called when the user deletes a map's scores
-         /// </summary>
-         /// <param name="sender"></param>
-         /// <param name="e"></param>
-        private void OnMapLocalScoresDeleted(object sender, LocalScoresDeletedEventArgs e)
+        ///     Called when the user deletes a map's scores
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void OnMapLocalScoresDeleted(object? sender, LocalScoresDeletedEventArgs e)
         {
             if (ConfigManager.LeaderboardSection == null || ConfigManager.LeaderboardSection.Value != LeaderboardType.Local)
                 return;

@@ -4,6 +4,7 @@ using System.Linq;
 using Quaver.API.Enums;
 using Quaver.API.Maps.Processors.Difficulty.Rulesets.Keys;
 using Quaver.API.Maps.Processors.Rating;
+using System.Threading;
 using Quaver.Shared.Database.Maps;
 using Quaver.Shared.Database.Scores;
 using Wobble.Logging;
@@ -15,11 +16,12 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard.Rankings
     /// </summary>
     public class ScoreFetcherLocal : IScoreFetcher
     {
-        public FetchedScoreStore Fetch(Map map)
+        public FetchedScoreStore Fetch(Map map, CancellationToken token = default)
         {
             try
             {
                 var scores = ScoreDatabaseCache.FetchMapScores(map.Md5Checksum);
+                token.ThrowIfCancellationRequested();
 
                 if (map.DifficultyProcessorVersion == DifficultyProcessorKeys.Version)
                 {

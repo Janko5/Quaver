@@ -5,6 +5,7 @@
  * Copyright (c) Swan & The Quaver Team <support@quavergame.com>.
 */
 
+using System;
 using System.Linq;
 using Quaver.Server.Client.Objects;
 using Quaver.Server.Client.Objects.Listening;
@@ -70,13 +71,21 @@ namespace Quaver.Shared.Screens.Importing
 
         /// <summary>
         /// </summary>
+        /// <summary>
+        ///     Action to run when the import is complete
+        /// </summary>
+        private Action OnComplete { get; }
+
+        /// <summary>
+        /// </summary>
         public ImportingScreen(MultiplayerScreen multiplayerScreen = null, bool fromSelect = false,
-            bool fullSync = false, int? selectMapIdAfterImport = null)
+            bool fullSync = false, int? selectMapIdAfterImport = null, Action onComplete = null)
         {
             ComingFromSelect = fromSelect;
             FullSync = fullSync;
             MultiplayerScreen = multiplayerScreen;
             SelectMapIdAfterImport = selectMapIdAfterImport;
+            OnComplete = onComplete;
 
             PreviouslySelectedMap = MapManager.Selected.Value;
             View = new ImportingScreenView(this);
@@ -120,6 +129,8 @@ namespace Quaver.Shared.Screens.Importing
 
             if (FullSync || refreshMapsetStatuses)
                 OptionsItemUpdateRankedStatuses.Run(false);
+
+            OnComplete?.Invoke();
 
             if (OnlineManager.CurrentGame != null)
             {

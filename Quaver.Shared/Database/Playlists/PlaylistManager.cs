@@ -10,12 +10,22 @@ using Quaver.Shared.Assets;
 using Quaver.Shared.Config;
 using Quaver.Shared.Database.Maps;
 using Quaver.Shared.Graphics.Backgrounds;
+using Quaver.Shared.Graphics;
 using Quaver.Shared.Graphics.Notifications;
 using Quaver.Shared.Helpers;
 using Quaver.Shared.Online;
+using Quaver.Shared.Screens.Download;
+using Quaver.Shared.Online.API.Maps;
+using Wobble.Graphics.UI.Dialogs;
 using Quaver.Shared.Online.API.Playlists;
 using Quaver.Shared.Scheduling;
+using Quaver.Server.Client.Events.Download;
+using Quaver.Server.Client.Helpers;
+using Quaver.Shared.Screens.Selection;
+using Quaver.Shared.Screens.Importing;
+using Quaver.Shared.Screens.Main;
 using SQLite;
+using Wobble;
 using Wobble.Bindables;
 using Wobble.Logging;
 
@@ -343,15 +353,36 @@ namespace Quaver.Shared.Database.Playlists
         /// <param name="playlist"></param>
         public static void SyncPlaylistToMapPool(Playlist playlist)
         {
-            if (!playlist.IsOnlineMapPool())
+            if (playlist == null || !playlist.IsOnlineMapPool())
                 return;
 
             var response = new APIRequestPlaylistMaps(playlist).ExecuteRequest();
 
+            if (response == null)
+            {
+                NotificationManager.Show(NotificationLevel.Error, "Failed to sync playlist to map pool.");
+                return;
+            }
+
+            // Create a dictionary for O(1) lookup of maps
+            var allMaps = new Dictionary<int, Map>();
+            foreach (var set in MapManager.Mapsets)
+            {
+                foreach (var map in set.Maps)
+                {
+                    if (!allMaps.ContainsKey(map.MapId))
+                        allMaps[map.MapId] = map;
+                }
+            }
+
             var missingMapIds = new List<int>();
+
             foreach (var id in response.MapIds)
             {
-                var map = MapManager.FindMapFromOnlineId(id);
+                Map map = null;
+
+                if (allMaps.TryGetValue(id, out var foundMap))
+                    map = foundMap;
 
                 // Map is already in playlist or doesn't exist
                 if (map == null)
@@ -370,10 +401,141 @@ namespace Quaver.Shared.Database.Playlists
             {
                 Logger.Debug("Skipped following maps during playlist sync: " + String.Join(',', missingMapIds), LogType.Runtime);
                 NotificationManager.Show(NotificationLevel.Info, $"Skipped {missingMapIds.Count} locally missing maps during playlist sync");
+                HandleMissingMaps(playlist, missingMapIds);
             }
 
             Logger.Important($"Playlist {playlist.Name} (#{playlist.Id}) has been synced to map pool: {playlist.OnlineMapPoolId}", LogType.Runtime);
             PlaylistSynced?.Invoke(typeof(PlaylistManager), new PlaylistSyncedEventArgs(playlist));
+        }
+
+        /// <summary>
+        ///     Handles missing maps by asking the user to download them
+        /// </summary>
+        /// <param name="missingMapIds"></param>
+        private static void HandleMissingMaps(Playlist playlist, List<int> missingMapIds)
+        {
+            DialogManager.Show(new YesNoDialog("Missing Maps", "Do you want to download the missing maps?", () =>
+            {
+                NotificationManager.Show(NotificationLevel.Info, "Starting download of missing maps...");
+                Task.Run(async () => await DownloadMissingMaps(playlist, missingMapIds));
+            }));
+        }
+
+        /// <summary>
+        ///     Downloads the missing maps
+        /// </summary>
+        /// <param name="missingMapIds"></param>
+        private static async Task DownloadMissingMaps(Playlist playlist, List<int> missingMapIds)
+        {
+            var downloads = new List<MapsetDownload>();
+            var processedMapsets = new HashSet<int>();
+
+            foreach (var id in missingMapIds)
+            {
+                if (!OnlineManager.Connected)
+                    return;
+
+                try
+                {
+                    var response = new APIRequestMapInformation(id).ExecuteRequest();
+
+                    if (response == null || response.Status != 200)
+                        continue;
+
+                    if (processedMapsets.Contains(response.Map.MapsetId))
+                        continue;
+
+                    processedMapsets.Add(response.Map.MapsetId);
+
+                    if (MapsetDownloadManager.IsMapsetInQueue(response.Map.MapsetId))
+                        continue;
+
+                    MapsetDownload download = null;
+                    var tcs = new TaskCompletionSource<bool>();
+
+                    // Schedule the download on the main thread to prevent threading issues/deadlocks with the UI
+                    ((WobbleGame)GameBase.Game).GlobalUserInterface.AddScheduledUpdate(() =>
+                    {
+                        try
+                        {
+                            download = MapsetDownloadManager.Download(response.Map.MapsetId, response.Map.Artist, response.Map.Title);
+                        }
+                        finally
+                        {
+                            tcs.SetResult(true);
+                        }
+                    });
+
+                    // Wait for the main thread to process the download request
+                    await tcs.Task;
+
+                    if (download != null)
+                        downloads.Add(download);
+
+                    // Limit concurrent downloads to 7 to prevent connection issues
+                    while (downloads.Count(x => !x.Status.Value.CancelledOrComplete) >= 7)
+                        await Task.Delay(500);
+
+                    // Delay to prevent spamming requests
+                    await Task.Delay(100);
+                }
+                catch (Exception e)
+                {
+                    Logger.Error(e, LogType.Runtime);
+                }
+            }
+
+            if (downloads.Count == 0)
+                return;
+
+            NotificationManager.Show(NotificationLevel.Success, ($"Started downloading {downloads.Count} missing mapsets!"));
+
+            // Wait for all downloads to finish
+            await Task.WhenAll(downloads.Select(WaitForDownload));
+
+            // Done downloading. Trigger import.
+            ThreadScheduler.Run(() =>
+            {
+                var game = (QuaverGame)GameBase.Game;
+
+                // Only import if we're in a screen that allows it (Select, Menu, etc)
+                // Using similar logic to QuaverIpcHandler
+                if (game.CurrentScreen is SelectionScreen)
+                    game.CurrentScreen.Exit(() => new ImportingScreen(null, true, false, null, () => SyncPlaylistToMapPool(playlist)));
+                else if (game.CurrentScreen is MainMenuScreen)
+                    game.CurrentScreen.Exit(() => new ImportingScreen(null, false, false, null, () => SyncPlaylistToMapPool(playlist)));
+            });
+        }
+
+        /// <summary>
+        ///     Waits for a download to complete or fail
+        /// </summary>
+        /// <param name="download"></param>
+        /// <returns></returns>
+        private static Task WaitForDownload(MapsetDownload download)
+        {
+            var tcs = new TaskCompletionSource<bool>();
+
+            void Handler(object s, BindableValueChangedEventArgs<DownloadStatusChangedEventArgs> e)
+            {
+                if (e.Value.Status == FileDownloaderStatus.Complete || e.Value.CancelledOrComplete)
+                {
+                    download.Status.ValueChanged -= Handler;
+                    tcs.TrySetResult(true);
+                }
+            }
+
+
+            download.Status.ValueChanged += Handler;
+
+            // Check if already done
+            if (download.Status.Value != null && (download.Status.Value.Status == FileDownloaderStatus.Complete || download.Status.Value.CancelledOrComplete))
+            {
+                download.Status.ValueChanged -= Handler;
+                tcs.TrySetResult(true);
+            }
+
+            return tcs.Task;
         }
 
         /// <summary>
@@ -397,6 +559,8 @@ namespace Quaver.Shared.Database.Playlists
 
             if (check == null)
                 DatabaseManager.Connection.Insert(playlistMap);
+
+            InvokePlaylistMapsManagedEvent(playlist);
         }
 
         /// <summary>
@@ -412,6 +576,8 @@ namespace Quaver.Shared.Database.Playlists
 
             if (check != null)
                 DatabaseManager.Connection.Delete(check);
+
+            InvokePlaylistMapsManagedEvent(playlist);
         }
 
         /// <summary>
@@ -435,6 +601,22 @@ namespace Quaver.Shared.Database.Playlists
                 playlist.OnlineMapPoolId = response.PlaylistId;
                 playlist.OnlineMapPoolCreatorId = OnlineManager.Self.OnlineUser.Id;
                 Logger.Important($"Successfully uploaded playlist: {playlist.Name} (#{playlist.Id}) online: {playlist.OnlineMapPoolId}", LogType.Runtime);
+
+                var bannerPath = $"{ConfigManager.DataDirectory}/playlists/{playlist.Id}.jpg";
+
+                if (!File.Exists(bannerPath))
+                    bannerPath = $"{ConfigManager.DataDirectory}/playlists/{playlist.Id}.png";
+
+                if (File.Exists(bannerPath))
+                {
+                    Logger.Important($"Uploading playlist background for {playlist.Name}...", LogType.Runtime);
+                    var success = OnlineManager.Client.UploadPlaylistCover(playlist.OnlineMapPoolId, bannerPath);
+                    if (success)
+                        Logger.Important($"Successfully uploaded playlist background for {playlist.Name}!", LogType.Runtime);
+                    else
+                        Logger.Important($"Failed to upload playlist background for {playlist.Name}.", LogType.Runtime);
+                }
+
                 playlist.OpenUrl();
             }
             else
@@ -464,6 +646,22 @@ namespace Quaver.Shared.Database.Playlists
             if (response == 200)
             {
                 Logger.Important($"Successfully updated playlist: {playlist.Name} (#{playlist.Id}) online: {playlist.OnlineMapPoolId}", LogType.Runtime);
+
+                var bannerPath = $"{ConfigManager.DataDirectory}/playlists/{playlist.Id}.jpg";
+
+                if (!File.Exists(bannerPath))
+                    bannerPath = $"{ConfigManager.DataDirectory}/playlists/{playlist.Id}.png";
+
+                if (File.Exists(bannerPath))
+                {
+                    Logger.Important($"Uploading playlist background for {playlist.Name}...", LogType.Runtime);
+                    var success = OnlineManager.Client.UploadPlaylistCover(playlist.OnlineMapPoolId, bannerPath);
+                    if (success)
+                        Logger.Important($"Successfully uploaded playlist background for {playlist.Name}!", LogType.Runtime);
+                    else
+                        Logger.Important($"Failed to upload playlist background for {playlist.Name}.", LogType.Runtime);
+                }
+
                 playlist.OpenUrl();
             }
             else
@@ -589,6 +787,33 @@ namespace Quaver.Shared.Database.Playlists
 
             var action = playlistAlreadyExistsLocally ? "updated" : "imported";
             NotificationManager.Show(NotificationLevel.Success, $"Successfully {action} playlist {playlist.Name}");
+
+            ThreadScheduler.Run(() => DownloadPlaylistBackground(onlineId, playlist));
+        }
+
+        /// <summary>
+        ///     Downloads the playlist background from the server
+        /// </summary>
+        /// <param name="id"></param>
+        /// <param name="playlist"></param>
+        private static void DownloadPlaylistBackground(int id, Playlist playlist)
+        {
+            try
+            {
+                var tempPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}.jpg");
+                var dl = new FileDownloader($"https://cdn.quavergame.com/playlists/{id}.jpg", tempPath);
+                dl.Start().Wait();
+
+                if (dl.Status == FileDownloaderStatus.Complete)
+                {
+                    CopyPlaylistBanner(playlist, tempPath);
+                    File.Delete(tempPath);
+                }
+            }
+            catch (Exception e)
+            {
+                Logger.Error($"Failed to download playlist background for {id}: {e.Message}", LogType.Runtime);
+            }
         }
 
         /// <summary>

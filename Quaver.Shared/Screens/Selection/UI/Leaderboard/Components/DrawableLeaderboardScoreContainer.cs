@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -15,6 +16,7 @@ using Quaver.Shared.Online;
 using Quaver.Shared.Screens.Menu.UI.Jukebox;
 using Quaver.Shared.Screens.Results;
 using Quaver.Shared.Skinning;
+using Quaver.Shared.Skinning.Menus;
 using Steamworks;
 using Wobble;
 using Wobble.Assets;
@@ -24,6 +26,7 @@ using Wobble.Graphics.Animations;
 using Wobble.Graphics.Sprites;
 using Wobble.Graphics.Sprites.Text;
 using Wobble.Logging;
+using Wobble.Input;
 using Wobble.Managers;
 
 namespace Quaver.Shared.Screens.Selection.UI.Leaderboard.Components
@@ -36,9 +39,14 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard.Components
         private DrawableLeaderboardScore Score { get; set; }
 
         /// <summary>
+        ///     Whether the V2 layout is active
+        /// </summary>
+        private bool IsV2 => (SkinManager.Skin?.UserInterfaceVersion ?? 1.0f) == 2.0f;
+
+        /// <summary>
         ///     The amount of padding from the left side that the elements will begin
         /// </summary>
-        private int PaddingLeft { get; } = 20;
+        private int PaddingLeft => Score.IsPersonalBest ? 10 : 20;
 
         /// <summary>
         ///     Makes the leaderboard score clickable/hoverable
@@ -48,7 +56,12 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard.Components
         /// <summary>
         ///     Displays the rank of the score
         /// </summary>
-        private SpriteTextPlus Rank { get; set; }
+        private SpriteTextPlus? Rank { get; set; }
+
+        /// <summary>
+        ///     The container for the rank in V2
+        /// </summary>
+        private Container? RankContainer { get; set; }
 
         /// <summary>
         ///     The grade the user achieved on the score
@@ -58,7 +71,13 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard.Components
         /// <summary>
         ///     The user's avatar from the score
         /// </summary>
-        private Sprite Avatar { get; set; }
+        private SpriteAlphaMaskBlend Avatar { get; set; }
+
+        /// <summary>
+        ///     Static cache for masked avatar textures (LRU-like behavior managed by simple dictionary for now)
+        ///     Key: SteamID, Value: Masked texture
+        /// </summary>
+        private static ConcurrentDictionary<ulong, Texture2D> MaskedAvatarCache { get; set; } = new ConcurrentDictionary<ulong, Texture2D>();
 
         /// <summary>
         ///     Displays the username of the player
@@ -99,7 +118,35 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard.Components
         /// <summary>
         ///     The x position of <see cref="PerformanceRating"/>
         /// </summary>
-        private int PerformanceRatingX { get; } = -12;
+        /// <summary>
+        ///     Default X position for the rating text
+        /// </summary>
+        private const float DefaultRatingX = -12;
+
+        /// <summary>
+        ///     Spacing between the icon and the rating text
+        /// </summary>
+        private const float ElementSpacing = 10;
+
+        /// <summary>
+        ///     Height for the small icon (RatingLeft/RatingRight)
+        /// </summary>
+        private const float SmallIconHeight = 16;
+
+        /// <summary>
+        ///     Height for the large icon (RatingAccRight)
+        /// </summary>
+        private const float LargeIconHeight = 50;
+
+        /// <summary>
+        ///     Width for the large icon (RatingAccRight)
+        /// </summary>
+        private const float LargeIconWidth = 5;
+
+        /// <summary>
+        ///     The x position of <see cref="PerformanceRating"/>
+        /// </summary>
+        private float PerformanceRatingX => Score.IsPersonalBest ? -10 : DefaultRatingX;
 
         /// <summary>
         ///     Returns the background color of the table
@@ -109,9 +156,9 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard.Components
             get
             {
                 if (Score.Index % 2 == 0)
-                    return SkinManager.Skin?.SongSelect?.LeaderboardScoreColorOdd ?? ColorHelper.HexToColor("#363636");
+                    return SkinManager.Skin.SongSelect.LeaderboardScoreColorOdd;
 
-                return SkinManager.Skin?.SongSelect?.LeaderboardScoreColorEven ?? ColorHelper.HexToColor("#242424");
+                return SkinManager.Skin.SongSelect.LeaderboardScoreColorEven;
             }
         }
 
@@ -151,7 +198,8 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard.Components
         public DrawableLeaderboardScoreContainer(DrawableLeaderboardScore score)
         {
             Score = score;
-            Size = Score.Size;
+            var isV2 = (SkinManager.Skin?.UserInterfaceVersion ?? 1.0f) == 2.0f;
+            Size = new ScalableVector2(Score.GetScoreWidth(), isV2 ? 70 : 66);
 
             if (Score.Item.IsEmptyScore)
                 return;
@@ -186,6 +234,25 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard.Components
             PerformHoverAnimation(gameTime);
             ContainAlertIconClickableStatus();
 
+            if (Button == null)
+            {
+                base.Update(gameTime);
+                return;
+            }
+
+            // Failsafe: if the alerts/button think they are hovered, but the mouse is physically outside,
+            // ensure the tooltips are deactivated. This fixes "sticky tooltips".
+            // We only trigger this if the internal state is currently reported as hovered.
+            var isStickyHovered = (Button.IsHovered && !Button.ScreenRectangle.Contains(MouseManager.CurrentState.Position)) ||
+                                  (CantBeatAlert != null && CantBeatAlert.IsHovered && !CantBeatAlert.ScreenRectangle.Contains(MouseManager.CurrentState.Position)) ||
+                                  (RequiredAccuracyAlert != null && RequiredAccuracyAlert.IsHovered && !RequiredAccuracyAlert.ScreenRectangle.Contains(MouseManager.CurrentState.Position));
+
+            if (isStickyHovered)
+            {
+                var game = (QuaverGame)GameBase.Game;
+                game?.CurrentScreen?.DeactivateTooltip();
+            }
+
             base.Update(gameTime);
         }
 
@@ -198,28 +265,35 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard.Components
 
             AddScheduledUpdate(() =>
             {
+                var isV2 = (SkinManager.Skin?.UserInterfaceVersion ?? 1.0f) == 2.0f;
+                Size = new ScalableVector2(Score.GetScoreWidth(), isV2 ? 70 : 66);
+
+                if (Button != null)
+                    Button.Size = Size;
+
+                Image = SkinManager.Skin?.SongSelect?.LeaderboardScoreMask ?? UserInterface.LeaderboardScoreMask;
                 Tint = BackgroundColor;
 
                 // Empty scores don't need to update its state
                 if (Score.Item.IsEmptyScore)
                     return;
 
-                Tint = Button.IsHovered || CantBeatAlert.IsHovered || RequiredAccuracyAlert.IsHovered
-                    ? ColorHelper.HexToColor("#575757"): BackgroundColor;
+                Tint = (Button?.IsHovered ?? false) || (CantBeatAlert?.IsHovered ?? false) || (RequiredAccuracyAlert?.IsHovered ?? false)
+                    ? SkinManager.Skin.SongSelect.LeaderboardScoreHoverColor : BackgroundColor;
 
                 // Ranks don't show on PB scores.
-                if (!Score.IsPersonalBest)
+                if (!Score.IsPersonalBest && Rank != null)
                     Rank.Text = $"{Score.Index + 1}.";
 
                 Username.Text = $"{score.Item.Name}";
 
                 if (score.Item.Name == ConfigManager.Username.Value)
-                    Username.Tint = SkinManager.Skin?.SongSelect?.LeaderboardScoreUsernameSelfColor ?? Colors.MainAccent;
+                    Username.Tint = SkinManager.Skin.SongSelect.LeaderboardScoreUsernameSelfColor;
                 else
-                    Username.Tint = SkinManager.Skin?.SongSelect?.LeaderboardScoreUsernameOtherColor ?? ColorHelper.HexToColor("#FBFFB6");
+                    Username.Tint = SkinManager.Skin.SongSelect.LeaderboardScoreUsernameOtherColor;
 
                 PerformanceRating.Text = StringHelper.RatingToString(score.Item.PerformanceRating);
-                
+
                 UpdateAccuracyMode(score);
 
                 UpdateTime();
@@ -265,8 +339,8 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard.Components
             {
                 if (ConfigManager.LeaderboardSection.Value == LeaderboardType.Clan)
                     return;
-                
-                var game = (QuaverGame) GameBase.Game;
+
+                var game = (QuaverGame)GameBase.Game;
 
                 if (OnlineManager.CurrentGame != null)
                     return;
@@ -278,8 +352,8 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard.Components
             {
                 if (ConfigManager.LeaderboardSection.Value == LeaderboardType.Clan)
                     return;
-                
-                var game = (QuaverGame) GameBase.Game;
+
+                var game = (QuaverGame)GameBase.Game;
                 game?.CurrentScreen?.ActivateRightClickOptions(new LeaderboardScoreRightClickOptions(Score.Item));
             };
         }
@@ -289,14 +363,36 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard.Components
         /// </summary>
         private void CreateRankText()
         {
-            Rank = new SpriteTextPlus(FontManager.GetWobbleFont(Fonts.LatoBlack), "10.", 22)
+            if (IsV2)
+            {
+                RankContainer = new Container
+                {
+                    Parent = this,
+                    Alignment = Alignment.MidLeft,
+                    Size = new ScalableVector2(36, 36),
+                    X = 10,
+                };
+
+                Rank = new SpriteTextPlus(FontManager.GetWobbleFont(Fonts.InterBold), "10.", 22)
+                {
+                    Parent = RankContainer,
+                    Alignment = Alignment.MidCenter,
+                    UsePreviousSpriteBatchOptions = true,
+                    Alpha = 0,
+                    Tint = SkinManager.Skin.SongSelect.LeaderboardScoreRankColor
+                };
+
+                return;
+            }
+
+            Rank = new SpriteTextPlus(FontManager.GetWobbleFont(Fonts.InterBold), "10.", 22)
             {
                 Parent = this,
                 Alignment = Alignment.MidLeft,
                 X = PaddingLeft,
                 UsePreviousSpriteBatchOptions = true,
                 Alpha = 0,
-                Tint = SkinManager.Skin?.SongSelect?.LeaderboardScoreRankColor ?? Color.White
+                Tint = SkinManager.Skin.SongSelect.LeaderboardScoreRankColor
             };
         }
 
@@ -307,17 +403,19 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard.Components
         {
             BlankImage = new Texture2D(GameBase.Game.GraphicsDevice, 1, 1);
 
-            Avatar = new Sprite
+            var mask = SkinManager.Skin?.SongSelect?.LeaderboardAvatarMask ?? UserInterface.LeaderboardAvatarMask;
+
+            Avatar = new SpriteAlphaMaskBlend
             {
                 Parent = this,
                 Alignment = Alignment.MidLeft,
-                X = Grade.X + Grade.Width + 15,
-                Size = new ScalableVector2(45, 45),
+                X = Grade.X + Grade.Width + (IsV2 ? 10 : 15),
+                Size = new ScalableVector2(IsV2 ? 50 : 45, IsV2 ? 50 : 45),
                 UsePreviousSpriteBatchOptions = true,
                 Image = BlankImage,
                 Alpha = 0
             };
-            
+
             if (ConfigManager.LeaderboardSection.Value == LeaderboardType.Clan)
                 Avatar.Size = new ScalableVector2(0, 0);
         }
@@ -327,12 +425,14 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard.Components
         /// </summary>
         private void CreateGrade()
         {
+            var x = IsV2 ? 10 + 36 + 10 : 60;
+
             Grade = new Sprite
             {
                 Parent = this,
                 Alignment = Alignment.MidLeft,
                 Size = new ScalableVector2(40, 40),
-                X = Score.IsPersonalBest ? PaddingLeft : 60,
+                X = Score.IsPersonalBest ? PaddingLeft : x,
                 UsePreviousSpriteBatchOptions = true,
             };
         }
@@ -342,11 +442,13 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard.Components
         /// </summary>
         private void CreateFlag()
         {
+            var x = IsV2 ? Avatar.X + Avatar.Width + 10 : Avatar.X + Avatar.Width + PaddingLeft / 2f;
+
             Flag = new Sprite()
             {
                 Parent = this,
                 Alignment = Alignment.TopLeft,
-                Position = new ScalableVector2(Avatar.X + Avatar.Width + PaddingLeft / 2f, UsernameY + 4),
+                Position = new ScalableVector2(x, UsernameY + 5),
                 UsePreviousSpriteBatchOptions = true,
                 Size = new ScalableVector2(24, 24),
                 Image = Flags.Get("XX")
@@ -361,14 +463,16 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard.Components
         /// </summary>
         private void CreateUsername()
         {
-            Username = new SpriteTextPlus(FontManager.GetWobbleFont(Fonts.LatoBlack), "Player", 24)
+            var x = IsV2 ? Flag.X + Flag.Width + 5 : Flag.X + Flag.Width + PaddingLeft / 4f;
+
+            Username = new SpriteTextPlus(FontManager.GetWobbleFont(Fonts.InterBold), "Player", IsV2 ? 22 : 24)
             {
                 Parent = this,
                 Alignment = Alignment.TopLeft,
-                Position = new ScalableVector2(Flag.X + Flag.Width +PaddingLeft / 4f, UsernameY + 4),
+                Position = new ScalableVector2(x, UsernameY + 5),
                 UsePreviousSpriteBatchOptions = true
             };
-            
+
         }
 
         /// <summary>
@@ -376,13 +480,13 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard.Components
         /// </summary>
         private void CreatePerformanceRating()
         {
-            PerformanceRating = new SpriteTextPlus(FontManager.GetWobbleFont(Fonts.LatoBlack), "00.00", 28)
+            PerformanceRating = new SpriteTextPlus(FontManager.GetWobbleFont(Fonts.InterBold), "00.00", IsV2 ? 26 : 28)
             {
                 Parent = this,
                 Alignment = Alignment.TopRight,
-                Y = 6,
+                Y = 11,
                 X = PerformanceRatingX,
-                Tint = SkinManager.Skin?.SongSelect?.LeaderboardScoreRatingColor ?? ColorHelper.HexToColor("#E9B736"),
+                Tint = SkinManager.Skin.SongSelect.LeaderboardScoreRatingColor,
                 UsePreviousSpriteBatchOptions = true
             };
         }
@@ -392,14 +496,14 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard.Components
         /// </summary>
         private void CreateAccuracyMaxCombo()
         {
-            AccuracyMaxCombo = new SpriteTextPlus(FontManager.GetWobbleFont(Fonts.LatoBlack), "00.00% | 0,000x", 21)
+            AccuracyMaxCombo = new SpriteTextPlus(FontManager.GetWobbleFont(Fonts.InterBold), "00.00% | 0,000x", IsV2 ? 22 : 21)
             {
                 Parent = this,
                 Alignment = Alignment.BotRight,
-                X = PerformanceRating.X,
-                Y = -PerformanceRating.Y,
+                X = DefaultRatingX,
+                Y = IsV2 ? -14 : -6,
                 UsePreviousSpriteBatchOptions = true,
-                Tint = SkinManager.Skin?.SongSelect?.LeaderboardScoreAccuracyColor ?? Color.White
+                Tint = SkinManager.Skin.SongSelect.LeaderboardScoreAccuracyColor
             };
         }
 
@@ -408,7 +512,7 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard.Components
         /// </summary>
         private void CreateMods()
         {
-            Mods = new SpriteTextPlus(FontManager.GetWobbleFont(Fonts.LatoBlack), "", 18)
+            Mods = new SpriteTextPlus(FontManager.GetWobbleFont(Fonts.InterBold), "", 18)
             {
                 Parent = this,
                 Alignment = Alignment.BotLeft,
@@ -423,13 +527,16 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard.Components
         /// </summary>
         private void CreateCantBeatAlert()
         {
-            CantBeatAlert = new FadeableButton(UserInterface.WarningRed)
+            var texture = SkinManager.Skin?.SongSelect?.LeaderboardWarning ?? UserInterface.LeaderboardWarning;
+            var height = SmallIconHeight;
+
+            CantBeatAlert = new FadeableButton(texture)
             {
                 Parent = this,
                 Alignment = Alignment.TopRight,
-                Size = new ScalableVector2(20, 20),
+                Size = new ScalableVector2(texture.Width * height / texture.Height, height),
                 UsePreviousSpriteBatchOptions = true,
-                Y = PerformanceRating.Y + 5,
+                Y = IsV2 ? 11 : PerformanceRating.Y + 5,
                 X = PerformanceRatingX,
                 Alpha = 0
             };
@@ -442,13 +549,13 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard.Components
 
             CantBeatAlert.Hovered += (sender, args) =>
             {
-                var game = (QuaverGame) GameBase.Game;
+                var game = (QuaverGame)GameBase.Game;
                 game.CurrentScreen.ActivateTooltip(UnbeatableTooltip);
             };
 
             CantBeatAlert.LeftHover += (sender, args) =>
             {
-                var game = (QuaverGame) GameBase.Game;
+                var game = (QuaverGame)GameBase.Game;
                 game.CurrentScreen.DeactivateTooltip();
             };
 
@@ -460,26 +567,28 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard.Components
         /// </summary>
         private void CreateRequiredAccuracyAlert()
         {
-            RequiredAccuracyAlert = new FadeableButton(UserInterface.RequiredAccAlert)
+            var texture = SkinManager.Skin?.SongSelect?.LeaderboardInfo ?? UserInterface.LeaderboardInfo;
+            var height = SmallIconHeight;
+
+            RequiredAccuracyAlert = new FadeableButton(texture)
             {
                 Parent = this,
                 Alignment = Alignment.TopRight,
-                Size = new ScalableVector2(18, 18),
+                Size = new ScalableVector2(texture.Width * height / texture.Height, height),
                 UsePreviousSpriteBatchOptions = true,
-                Y = PerformanceRating.Y + 5,
+                Y = IsV2 ? 11 : PerformanceRating.Y + 5,
                 X = PerformanceRatingX,
                 Alpha = 0,
-                Tint = ColorHelper.HexToColor("#5dc7f9")
             };
 
             RequiredAccuracyAlert.Hovered += (sender, args) => ActivateRequiredAccuracyTooltip();
 
             RequiredAccuracyAlert.LeftHover += (sender, args) =>
             {
-                var game = (QuaverGame) GameBase.Game;
+                var game = (QuaverGame)GameBase.Game;
                 game.CurrentScreen.DeactivateTooltip();
             };
-            
+
             if (ConfigManager.LeaderboardSection.Value == LeaderboardType.Clan)
                 RequiredAccuracyAlert.Size = new ScalableVector2(0, 0);
         }
@@ -494,11 +603,11 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard.Components
                 Parent = this,
                 Alignment = Alignment.TopLeft,
                 UsePreviousSpriteBatchOptions = true,
-                Image = UserInterface.Clock,
+                Image = UserInterface.LeaderboardClock,
                 Size = new ScalableVector2(12, 12),
             };
 
-            Time = new SpriteTextPlus(FontManager.GetWobbleFont(Fonts.LatoBlack), "", 18)
+            Time = new SpriteTextPlus(FontManager.GetWobbleFont(Fonts.InterBold), "", 18)
             {
                 Parent = Clock,
                 Alignment = Alignment.MidLeft,
@@ -526,27 +635,27 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard.Components
             Time.X = Clock.Width + 2;
 
             // Years
-            if ((int) timeDifference.TotalDays > 365)
-                Time.Text = $"{(int) (timeDifference.TotalDays / 365)}y";
+            if ((int)timeDifference.TotalDays > 365)
+                Time.Text = $"{(int)(timeDifference.TotalDays / 365)}y";
             // Months
-            else if ((int) timeDifference.TotalDays > 30)
-                Time.Text = $"{(int) (timeDifference.TotalDays / 30)}mo";
+            else if ((int)timeDifference.TotalDays > 30)
+                Time.Text = $"{(int)(timeDifference.TotalDays / 30)}mo";
             // Weeks
-            else if ((int) timeDifference.TotalDays > 7)
-                Time.Text = $"{(int) (timeDifference.TotalDays / 7)}w";
+            else if ((int)timeDifference.TotalDays > 7)
+                Time.Text = $"{(int)(timeDifference.TotalDays / 7)}w";
             // Days
-            else if ((int) timeDifference.TotalDays > 0)
-                Time.Text = $"{(int) timeDifference.TotalDays}d";
+            else if ((int)timeDifference.TotalDays > 0)
+                Time.Text = $"{(int)timeDifference.TotalDays}d";
             // Hours
-            else if ((int) timeDifference.TotalHours > 0)
-                Time.Text = $"{(int) timeDifference.TotalHours}h";
+            else if ((int)timeDifference.TotalHours > 0)
+                Time.Text = $"{(int)timeDifference.TotalHours}h";
             // Minutes
-            else if ((int) timeDifference.TotalMinutes > 0)
-                Time.Text = $"{(int) timeDifference.TotalMinutes}m";
+            else if ((int)timeDifference.TotalMinutes > 0)
+                Time.Text = $"{(int)timeDifference.TotalMinutes}m";
             // Seconds
             else
             {
-                var seconds = (int) timeDifference.TotalSeconds;
+                var seconds = (int)timeDifference.TotalSeconds;
 
                 if (seconds <= 0)
                     Time.Text = "now";
@@ -568,8 +677,13 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard.Components
             if (Button == null)
                 return;
 
-            var color = Button.IsHovered || CantBeatAlert.IsHovered ? ColorHelper.HexToColor("#575757"): BackgroundColor;
+            var isHovered = Button.IsHovered || (CantBeatAlert?.IsHovered ?? false) || (RequiredAccuracyAlert?.IsHovered ?? false);
+            var color = isHovered ? SkinManager.Skin.SongSelect.LeaderboardScoreHoverColor : BackgroundColor;
+
             FadeToColor(color, gameTime.ElapsedGameTime.TotalMilliseconds, 30);
+
+            if (Rank != null && Rank.Alpha < 1)
+                Rank.Alpha += 0.05f * (float)gameTime.ElapsedGameTime.TotalMilliseconds / 10;
         }
 
         /// <summary>
@@ -582,7 +696,7 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard.Components
 
             Modifiers = new List<DrawableModifier>();
 
-            var modsList = ModManager.GetModsList((ModIdentifier) Score.Item.Mods);
+            var modsList = ModManager.GetModsList((ModIdentifier)Score.Item.Mods);
 
             if (modsList.Count == 0)
                 modsList.Add(ModIdentifier.None);
@@ -591,15 +705,17 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard.Components
             {
                 try
                 {
-                    const int width = 52;
-                    const int height = 26;
+                    int width = IsV2 ? 45 : 45;
+                    int height = IsV2 ? 18 : 18;
+                    int horizontalSpacing = IsV2 ? 5 : 5;
+                    float startX = IsV2 ? Avatar.X + Avatar.Width + 10 : Flag.X;
 
                     var mod = new DrawableModifier(modsList[i])
                     {
                         Parent = this,
-                        Alignment = Alignment.BotLeft,
-                        X = Flag.X + width * Modifiers.Count - 4,
-                        Y = AccuracyMaxCombo.Y,
+                        Alignment = Alignment.TopLeft,
+                        X = startX + (width + horizontalSpacing) * Modifiers.Count,
+                        Y = Flag.Y + Flag.Height + 4,
                         UsePreviousSpriteBatchOptions = true,
                         Size = new ScalableVector2(width, height),
                         Alpha = 1
@@ -607,7 +723,7 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard.Components
 
                     if (modsList.Count > 5 && i != 0)
                     {
-                        mod.X = Flag.X + width * 0.70f * i - 4;
+                        mod.X = startX + width * 0.70f * i;
                     }
 
                     Modifiers.Add(mod);
@@ -621,39 +737,132 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard.Components
 
         /// <summary>
         /// </summary>
+        /// <summary>
+        /// </summary>
         private void UpdateAvatar()
         {
-            var steamId = (ulong) Score.Item.SteamId;
+            var steamId = (ulong)Score.Item.SteamId;
 
             if (ConfigManager.LeaderboardSection?.Value == LeaderboardType.Local)
                 steamId = SteamUser.GetSteamID().m_SteamID;
 
             lock (Avatar)
-            lock (Avatar.Image)
             {
                 if (Score.IsPersonalBest && !Score.Item.IsOnline)
                 {
-                    Avatar.Image = SteamManager.GetAvatarOrUnknown(steamId);
+                    var rawTexture = SteamManager.GetAvatarOrUnknown(steamId);
+
+                    // If the avatar is already cached, use it to avoid redundant blending operations
+                    if (MaskedAvatarCache.TryGetValue(steamId, out var cached))
+                    {
+                        Avatar.Image = cached;
+                        Avatar.Alpha = 1;
+                        return;
+                    }
+
+                    Avatar.Image = rawTexture;
                     Avatar.Alpha = 1;
+
+                    // Capture local variable to ensure thread safety in the lambda
+                    var textureToMask = rawTexture;
+
+                    GameBase.Game.ScheduledRenderTargetDraws.Add(() =>
+                    {
+                        if (textureToMask.IsDisposed)
+                            return;
+
+                        var mask = SkinManager.Skin?.SongSelect?.LeaderboardAvatarMask ?? UserInterface.LeaderboardAvatarMask;
+
+                        // PerformBlend can return null or be invalid if device is lost, but usually returns a texture.
+                        // We use textureToMask instead of Avatar.Image to ensure we are blending the INTENDED texture.
+
+                        // Use Helper
+                        var maskedTexture = AvatarMaskingHelper.PerformBlend(textureToMask, mask);
+
+                        if (maskedTexture == null)
+                            return;
+
+                        if (!Avatar.IsDisposed)
+                            Avatar.Image = maskedTexture;
+
+                        MaskedAvatarCache.TryAdd(steamId, maskedTexture);
+                    });
+
                     return;
                 }
 
                 if (SteamManager.UserAvatars.ContainsKey(steamId))
                 {
-                    if (Avatar.Image == SteamManager.UserAvatars[steamId])
+                    var rawTexture = SteamManager.UserAvatars[steamId];
+
+                    // Use cached if available
+                    if (MaskedAvatarCache.TryGetValue(steamId, out var cached))
+                    {
+                        Avatar.Image = cached;
+                        Avatar.Alpha = 0;
+                        Avatar.ClearAnimations();
+                        Avatar.FadeTo(1, Easing.Linear, 400);
+                        return;
+                    }
+
+                    if (Avatar.Image == rawTexture)
                         return;
 
                     Avatar.Alpha = 0;
                     Avatar.ClearAnimations();
                     Avatar.FadeTo(1, Easing.Linear, 400);
+                    Avatar.Image = rawTexture;
 
-                    Avatar.Image = SteamManager.UserAvatars[steamId];
+                    // Capture local variable
+                    var textureToMask = rawTexture;
+
+                    GameBase.Game.ScheduledRenderTargetDraws.Add(() =>
+                    {
+                        if (textureToMask.IsDisposed)
+                            return;
+
+                        var mask = SkinManager.Skin?.SongSelect?.LeaderboardAvatarMask ?? UserInterface.LeaderboardAvatarMask;
+
+                        // Use Helper
+                        var maskedTexture = AvatarMaskingHelper.PerformBlend(textureToMask, mask);
+
+                        if (maskedTexture == null)
+                            return;
+
+                        if (!Avatar.IsDisposed)
+                            Avatar.Image = maskedTexture;
+
+                        MaskedAvatarCache.TryAdd(steamId, maskedTexture);
+                    });
+
                     return;
                 }
 
-                Avatar.Image = UserInterface.UnknownAvatar;
+                if (MaskedAvatarCache.TryGetValue(0, out var cachedPlaceholder))
+                {
+                    Avatar.Image = cachedPlaceholder;
+                }
+                else
+                {
+                    Avatar.Image = UserInterface.UnknownAvatar;
+
+                    GameBase.Game.ScheduledRenderTargetDraws.Add(() =>
+                    {
+                        var mask = SkinManager.Skin?.SongSelect?.LeaderboardAvatarMask ?? UserInterface.LeaderboardAvatarMask;
+                        var maskedTexture = AvatarMaskingHelper.PerformBlend(UserInterface.UnknownAvatar, mask);
+
+                        if (maskedTexture == null)
+                            return;
+
+                        if (!Avatar.IsDisposed)
+                            Avatar.Image = maskedTexture;
+
+                        MaskedAvatarCache.TryAdd(0, maskedTexture);
+                    });
+                }
+
                 Avatar.ClearAnimations();
-                Avatar.Alpha = 0;
+                Avatar.Alpha = 1;
             }
 
             SteamManager.SendAvatarRetrievalRequest(steamId);
@@ -664,6 +873,8 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard.Components
         /// </summary>
         private void UpdateCantBeatAlert()
         {
+            var pos = SkinManager.Skin?.SongSelect?.LeaderboardIconPosition ?? SkinLeaderboardIconPosition.RatingLeft;
+
             // Handle if it is impossible to beat this score with the currently activated mods
             if (new RatingProcessorKeys(MapManager.Selected.Value.DifficultyFromMods(ModManager.Mods)).CalculateRating(100) >=
                 Score.Item.PerformanceRating)
@@ -672,7 +883,7 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard.Components
             }
             else
             {
-                CantBeatAlert.X = PerformanceRating.X - PerformanceRating.Width - 10;
+                UpdateLeaderboardIconLayout(CantBeatAlert, pos);
                 CantBeatAlert.Visible = true;
             }
         }
@@ -681,16 +892,85 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard.Components
         /// </summary>
         private void UpdateRequiredAccuracyAlert()
         {
+            var pos = SkinManager.Skin?.SongSelect?.LeaderboardIconPosition ?? SkinLeaderboardIconPosition.RatingLeft;
+
             if (CantBeatAlert.Visible ||
                 // ReSharper disable once CompareOfFloatsByEqualityOperator
-                ModHelper.GetRateFromMods(ModManager.Mods) == ModHelper.GetRateFromMods((ModIdentifier) Score.Item.Mods))
+                ModHelper.GetRateFromMods(ModManager.Mods) == ModHelper.GetRateFromMods((ModIdentifier)Score.Item.Mods))
             {
                 RequiredAccuracyAlert.Visible = false;
+
+                // Reset text if no icons are visible at all (and CantBeatAlert is hidden)
+                if (!CantBeatAlert.Visible)
+                {
+                    ResetTextLayout();
+                }
+
                 return;
             }
 
+            UpdateLeaderboardIconLayout(RequiredAccuracyAlert, pos);
             RequiredAccuracyAlert.Visible = true;
-            RequiredAccuracyAlert.X = PerformanceRating.X - PerformanceRating.Width - 10;
+        }
+
+        /// <summary>
+        ///     Updates the layout of the leaderboard icon and text based on the skin configuration.
+        /// </summary>
+        private void UpdateLeaderboardIconLayout(IconButton activeAlert, SkinLeaderboardIconPosition pos)
+        {
+            var iconWidth = 0f;
+            var height = SmallIconHeight;
+
+            if (pos == SkinLeaderboardIconPosition.RatingLeft)
+            {
+                // Reset Text Positions
+                ResetTextLayout();
+
+                height = SmallIconHeight;
+                iconWidth = activeAlert.Image.Width * height / activeAlert.Image.Height;
+
+                activeAlert.X = PerformanceRating.X - PerformanceRating.Width - ElementSpacing;
+                activeAlert.Y = PerformanceRating.Y + 5;
+                activeAlert.Height = height;
+                activeAlert.Width = iconWidth;
+            }
+            else if (pos == SkinLeaderboardIconPosition.RatingRight)
+            {
+                height = SmallIconHeight;
+                iconWidth = activeAlert.Image.Width * height / activeAlert.Image.Height;
+
+                activeAlert.X = DefaultRatingX;
+                activeAlert.Y = PerformanceRating.Y + 5;
+                activeAlert.Height = height;
+                activeAlert.Width = iconWidth;
+
+                // Shift Text
+                PerformanceRating.X = activeAlert.X - iconWidth - ElementSpacing;
+                AccuracyMaxCombo.X = PerformanceRating.X;
+            }
+            else if (pos == SkinLeaderboardIconPosition.RatingAccRight)
+            {
+                height = LargeIconHeight;
+                iconWidth = LargeIconWidth;
+
+                activeAlert.X = DefaultRatingX;
+                activeAlert.Y = (Height - height) / 2f;
+                activeAlert.Height = height;
+                activeAlert.Width = iconWidth;
+
+                // Shift Text
+                PerformanceRating.X = activeAlert.X - iconWidth - ElementSpacing;
+                AccuracyMaxCombo.X = PerformanceRating.X;
+            }
+        }
+
+        /// <summary>
+        ///     Resets the text layout to default positions.
+        /// </summary>
+        private void ResetTextLayout()
+        {
+            PerformanceRating.X = PerformanceRatingX;
+            AccuracyMaxCombo.X = PerformanceRatingX;
         }
 
         /// <summary>
@@ -704,13 +984,13 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard.Components
                 Flag.Image = Flags.Get("XX");
                 return;
             }
-
             try
             {
                 Flag.Image = Flags.Get(Score.Item.Country);
             }
-            catch (Exception)
+            catch (Exception e)
             {
+                Wobble.Logging.Logger.Error(e, LogType.Runtime);
                 Flag.Image = Flags.Get("XX");
             }
         }
@@ -720,18 +1000,48 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard.Components
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
-        private void OnSteamAvatarLoaded(object sender, SteamAvatarLoadedEventArgs e)
+        private void OnSteamAvatarLoaded(object? sender, SteamAvatarLoadedEventArgs e)
         {
-            if (e.SteamId != (ulong) Score.Item.SteamId)
+            if (e.SteamId != (ulong)Score.Item.SteamId)
                 return;
 
             lock (Avatar)
-            lock (Avatar.Image)
             {
+                // Use cache if available
+                if (MaskedAvatarCache.TryGetValue(e.SteamId, out var cached))
+                {
+                    Avatar.Image = cached;
+                    Avatar.Alpha = 0;
+                    Avatar.ClearAnimations();
+                    Avatar.FadeTo(1, Easing.Linear, 400);
+                    return;
+                }
+
                 Avatar.Alpha = 0;
                 Avatar.ClearAnimations();
                 Avatar.FadeTo(1, Easing.Linear, 400);
                 Avatar.Image = e.Texture;
+
+                // Capture local variable
+                var textureToMask = e.Texture;
+
+                GameBase.Game.ScheduledRenderTargetDraws.Add(() =>
+                {
+                    if (textureToMask.IsDisposed)
+                        return;
+
+                    var mask = SkinManager.Skin?.SongSelect?.LeaderboardAvatarMask ?? UserInterface.LeaderboardAvatarMask;
+
+                    var maskedTexture = AvatarMaskingHelper.PerformBlend(textureToMask, mask);
+
+                    if (maskedTexture == null)
+                        return;
+
+                    if (!Avatar.IsDisposed)
+                        Avatar.Image = maskedTexture;
+
+                    MaskedAvatarCache.TryAdd(e.SteamId, maskedTexture);
+                });
             }
         }
 
@@ -739,7 +1049,7 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard.Components
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
-        private void OnModsChanged(object sender, ModsChangedEventArgs e)
+        private void OnModsChanged(object? sender, ModsChangedEventArgs e)
         {
             var game = GameBase.Game as QuaverGame;
 
@@ -757,7 +1067,7 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard.Components
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
-        private void OnAccuracyDisplayChanged(object sender, BindableValueChangedEventArgs<bool> e) =>
+        private void OnAccuracyDisplayChanged(object? sender, BindableValueChangedEventArgs<bool> e) =>
             AddScheduledUpdate(() => UpdateAccuracyMode(Score));
 
         /// <summary>
@@ -786,14 +1096,14 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard.Components
         /// </summary>
         private void ActivateRequiredAccuracyTooltip()
         {
-            var game = (QuaverGame) GameBase.Game;
+            var game = (QuaverGame)GameBase.Game;
 
             var processor = new RatingProcessorKeys(MapManager.Selected.Value.DifficultyFromMods(ModManager.Mods));
 
             var requiredAcc = processor.GetAccuracyFromRating(Score.Item.PerformanceRating);
 
             var tooltip = new Tooltip("In order to beat this score with your current modifiers,\n" +
-                                      $"you must achieve higher than {StringHelper.AccuracyToString((float) requiredAcc)} accuracy.",
+                                      $"you must achieve higher than {StringHelper.AccuracyToString((float)requiredAcc)} accuracy.",
                 ColorHelper.HexToColor("#5dc7f9"));
 
             game.CurrentScreen.ActivateTooltip(tooltip);
@@ -819,7 +1129,8 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard.Components
                 PerformanceRating.Alpha = 0;
                 AccuracyMaxCombo.Alpha = 0;
                 Flag.Alpha = 0;
-                Rank.Alpha = 0;
+                if (Rank != null)
+                    Rank.Alpha = 0;
             }
 
             FadeTo(targetAlpha, easing, time);
@@ -833,7 +1144,8 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard.Components
                 PerformanceRating.FadeTo(targetAlpha, easing, time);
                 AccuracyMaxCombo.FadeTo(targetAlpha, easing, time);
                 Flag.FadeTo(targetAlpha, easing, time);
-                Rank.FadeTo(targetAlpha, easing, time);
+                if (Rank != null)
+                    Rank.FadeTo(targetAlpha, easing, time);
 
                 Modifiers?.ForEach(x =>
                 {

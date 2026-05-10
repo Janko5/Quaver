@@ -56,6 +56,9 @@ namespace Quaver.Shared.Online
 {
     public static class OnlineManager
     {
+        private const int OnlineUsersCountTraceIntervalSeconds = 30;
+        private static DateTime LastOnlineUsersCountTraceAt { get; set; } = DateTime.MinValue;
+
         /// <summary>
         ///    The online client that connects to the Quaver servers.
         /// </summary>
@@ -140,6 +143,7 @@ namespace Quaver.Shared.Online
         /// </summary>
         public static bool IsSpectatingSomeone => Client != null & Status.Value == ConnectionStatus.Connected && SpectatorClients.Count != 0;
 
+        /// <summary>
         ///     If the current user is a donator
         /// </summary>
         public static bool IsDonator => Connected && Self.OnlineUser.UserGroups.HasFlag(UserGroups.Donator);
@@ -205,9 +209,8 @@ namespace Quaver.Shared.Online
                         var dialog = new TermsOfServiceDialog();
                         DialogManager.Show(dialog);
                     }
-                    catch (Exception e)
+                    catch (Exception)
                     {
-                        Logger.Error(e, LogType.Runtime);
                         NotificationManager.Show(NotificationLevel.Error, "There was an issue while fetching the Terms of Service document.");
                     }
                 }));
@@ -444,8 +447,6 @@ namespace Quaver.Shared.Online
                 NotificationManager.Show(NotificationLevel.Success, $"{e.User.OnlineUser.Username} has logged in!");
             }
 
-            Trace.WriteLine($"User: {e.User.OnlineUser.Username} [{e.User.OnlineUser.SteamId}] (#{e.User.OnlineUser.Id}) has connected to the server.");
-            Trace.WriteLine($"There are currently: {OnlineUsers.Count} users online.");
         }
 
         /// <summary>
@@ -505,55 +506,29 @@ namespace Quaver.Shared.Online
                 if (mapsets.Count == 0)
                     return;
 
-                var map = mapsets.First().Maps.Find(x => x.MapId == e.Id && x.Md5Checksum == e.Md5);
+                var map = mapsets.First()?.Maps.Find(x => x.MapId == e.Id && x.Md5Checksum == e.Md5);
 
-                switch (e.Response.Code)
+                if (map == null)
+                    return;
+
+                // Map info from API v2 (RankedStatus, DateLastUpdated, OnlineOffset)
+                if (e.MapInfo?.Map != null)
                 {
-                    case OnlineScoresResponseCode.NotSubmitted:
-                        map.RankedStatus = RankedStatus.NotSubmitted;
-                        break;
-                    case OnlineScoresResponseCode.NeedsUpdate:
-                        break;
-                    case OnlineScoresResponseCode.Unranked:
-                        map.RankedStatus = RankedStatus.Unranked;
-                        break;
-                    case OnlineScoresResponseCode.Ranked:
-                        map.RankedStatus = RankedStatus.Ranked;
-                        break;
-                    case OnlineScoresResponseCode.DanCourse:
-                        map.RankedStatus = RankedStatus.DanCourse;
-                        break;
-                    default:
-                        map.RankedStatus = RankedStatus.NotSubmitted;
-                        break;
+                    map.RankedStatus = (RankedStatus)e.MapInfo.Map.RankedStatus;
+                    map.DateLastUpdated = e.MapInfo.Map.DateLastUpdated ?? DateTime.MinValue;
+                    map.OnlineOffset = e.MapInfo.Map.OnlineOffset;
                 }
 
-                if ((int)e.Response.Code == -1)
-                    map.RankedStatus = map.MapId == -1 ? RankedStatus.NotSubmitted : RankedStatus.Unranked;
-
-                // Update online grade
-                if (ConfigManager.LeaderboardSection.Value != LeaderboardType.Rate && e.Response.PersonalBest != null)
+                // Update online grade - PB is now fetched separately in v2.
+                if (ConfigManager.LeaderboardSection.Value != LeaderboardType.Rate && e.PersonalBestV2?.Score != null)
                 {
-                    var onlineGrade = GradeHelper.GetGradeFromAccuracy((float)e.Response.PersonalBest.Accuracy);
+                    var onlineGrade = GradeHelper.GetGradeFromAccuracy((float)e.PersonalBestV2.Score.Accuracy);
 
                     if (GradeHelper.GetGradeImportanceIndex(onlineGrade) > GradeHelper.GetGradeImportanceIndex(map.OnlineGrade))
                         map.OnlineGrade = onlineGrade;
                 }
 
-                map.DateLastUpdated = e.Response.DateLastUpdated;
-                map.OnlineOffset = e.Response.OnlineOffset;
                 MapDatabaseCache.UpdateMap(map);
-
-                // var game = GameBase.Game as QuaverGame;
-                //
-                // // If in song select, update the banner of the currently selected map.
-                // if (game.CurrentScreen is SelectScreen screen)
-                // {
-                //     var view = screen.View as SelectScreenView;
-                //
-                //     if (MapManager.Selected.Value == map)
-                //         view.Banner.RankedStatus.UpdateMap(map);
-                // }
             }
             catch (Exception)
             {
@@ -626,8 +601,6 @@ namespace Quaver.Shared.Online
         /// <param name="e"></param>
         private static void OnUsersOnline(object sender, UsersOnlineEventArgs e)
         {
-            var newOnlineUsers = new List<User>();
-
             foreach (var id in e.UserIds)
             {
                 if (OnlineUsers.ContainsKey(id))
@@ -643,10 +616,13 @@ namespace Quaver.Shared.Online
                 };
 
                 OnlineUsers[user.OnlineUser.Id] = user;
-                newOnlineUsers.Add(user);
             }
 
-            // ChatManager.Dialog.OnlineUserList.HandleNewOnlineUsers(newOnlineUsers);
+            if ((DateTime.UtcNow - LastOnlineUsersCountTraceAt).TotalSeconds < OnlineUsersCountTraceIntervalSeconds)
+                return;
+
+            LastOnlineUsersCountTraceAt = DateTime.UtcNow;
+            Trace.WriteLine($"There are currently: {OnlineUsers.Count} users online.");
         }
 
         /// <summary>
@@ -675,8 +651,6 @@ namespace Quaver.Shared.Online
 
                 var onlineUser = OnlineUsers[user.Key];
                 onlineUser.CurrentStatus = user.Value ?? new UserClientStatus(ClientStatus.InMenus, -1, "", 1, "", 0);
-
-                // ChatManager.Dialog.OnlineUserList?.UpdateUserInfo(onlineUser);
             }
         }
 
@@ -1067,7 +1041,7 @@ namespace Quaver.Shared.Online
                             CurrentGame.BlueTeamPlayers.Add(e.UserId);
                             break;
                         default:
-                            throw new ArgumentOutOfRangeException();
+                            throw new ArgumentOutOfRangeException(nameof(e.Team), e.Team, null);
                     }
                 }
         }
@@ -1543,15 +1517,8 @@ namespace Quaver.Shared.Online
                 ListeningParty.ListenerIdsWithoutSong.Clear();
             }
 
-            try
-            {
-                Logger.Important($"Received listening party state update: {e.Action} | {e.MapMd5} | {e.MapId} | {e.LastActionTime} " +
-                                 $"| {e.SongTime} | {e.IsPaused} | {e.SongArtist} | {e.SongTitle}", LogType.Runtime);
-            }
-            catch (Exception ex)
-            {
-                // ignored
-            }
+            Logger.Important($"Received listening party state update: {e.Action} | {e.MapMd5} | {e.MapId} | {e.LastActionTime} " +
+                             $"| {e.SongTime} | {e.IsPaused} | {e.SongArtist} | {e.SongTitle}", LogType.Runtime);
         }
 
         /// <summary>
@@ -1696,11 +1663,7 @@ namespace Quaver.Shared.Online
             NotificationManager.Show(NotificationLevel.Info, $"You have received a new song request. Click here to view it!",
                 (o, args) =>
                 {
-                    game.OnlineHub.SelectSection(OnlineHubSectionType.SongRequests);
-
-                    if (game.OnlineHub.IsOpen)
-                        return;
-
+                    game.OnlineHub?.SelectSection(OnlineHubSectionType.SongRequests);
                     DialogManager.Show(new OnlineHubDialog());
                 });
 

@@ -4,21 +4,21 @@ using System.Linq;
 using Microsoft.Xna.Framework;
 using Quaver.Shared.Config;
 using Quaver.Shared.Graphics.Form.Dropdowns;
-using Quaver.Shared.Graphics.Form.Dropdowns.Custom;
-using Quaver.Shared.Helpers;
-using Quaver.Shared.Skinning;
+using Quaver.Shared.Screens.Selection.UI.FilterPanel.Dropdowns;
 using Wobble.Bindables;
 using Wobble.Graphics;
 
 namespace Quaver.Shared.Screens.Selection.UI.Leaderboard.Components
 {
-    public class LeaderboardTypeDropdown : LabelledDropdown
+    public class LeaderboardTypeDropdown : FilterPanelDropdownV2
     {
-        public LeaderboardTypeDropdown() : base("RANKING: ", 24, new Dropdown(GetDropdownItems(),
-            new ScalableVector2(125, 30), 22, SkinManager.Skin?.SongSelect?.LeaderboardDropdownColor ?? ColorHelper.HexToColor($"#10C8F6"),
-            GetSelectedIndex()))
+        public LeaderboardTypeDropdown(bool isV2) : base(
+            isV2 ? new ScalableVector2(204, 40) : new ScalableVector2(125, 30), GetDropdownItems(), GetSelectedIndex())
         {
-            Label.Tint = SkinManager.Skin.SongSelect?.LeaderboardRankingTitleColor ?? Color.White;
+            DefaultText = isV2 ? "Select ranking" : "Ranking";
+
+            if (Dropdown.SelectedText != null)
+                Dropdown.SelectedText.Text = Dropdown.Options[Dropdown.SelectedIndex];
 
             Dropdown.ItemSelected += OnItemSelected;
             ConfigManager.LeaderboardSection.ValueChanged += OnLeaderboardSectionChanged;
@@ -50,7 +50,7 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard.Components
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
-        private void OnItemSelected(object sender, DropdownClickedEventArgs e)
+        private void OnItemSelected(object? sender, DropdownClickedEventArgs e)
         {
             if (ConfigManager.LeaderboardSection == null)
                 return;
@@ -62,10 +62,12 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard.Components
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
-        private void OnLeaderboardSectionChanged(object sender, BindableValueChangedEventArgs<LeaderboardType> e)
+        private void OnLeaderboardSectionChanged(object? sender, BindableValueChangedEventArgs<LeaderboardType> e)
         {
             Dropdown.SelectedIndex = (int) e.Value;
-            Dropdown.SelectedText.Text = Dropdown.Options[(int) e.Value];
+
+            if (Dropdown.SelectedText != null)
+                Dropdown.SelectedText.Text = Dropdown.Options[(int) e.Value];
         }
     }
 }

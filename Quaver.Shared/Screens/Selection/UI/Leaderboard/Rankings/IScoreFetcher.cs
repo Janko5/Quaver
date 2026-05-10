@@ -1,3 +1,4 @@
+using System.Threading;
 using Quaver.Shared.Database.Maps;
 
 namespace Quaver.Shared.Screens.Selection.UI.Leaderboard.Rankings
@@ -9,6 +10,6 @@ namespace Quaver.Shared.Screens.Selection.UI.Leaderboard.Rankings
         /// </summary>
         /// <param name="map"></param>
         /// <returns></returns>
-        FetchedScoreStore Fetch(Map map);
+        FetchedScoreStore Fetch(Map map, CancellationToken token = default);
     }
 }
