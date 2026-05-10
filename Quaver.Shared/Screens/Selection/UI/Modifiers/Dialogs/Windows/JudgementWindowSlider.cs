@@ -16,6 +16,7 @@ using Wobble.Graphics;
 using Wobble.Graphics.Sprites;
 using Wobble.Graphics.Sprites.Text;
 using Wobble.Graphics.UI.Form;
+using Wobble.Logging;
 using Wobble.Managers;
 
 namespace Quaver.Shared.Screens.Selection.UI.Modifiers.Dialogs.Windows
@@ -136,7 +137,7 @@ namespace Quaver.Shared.Screens.Selection.UI.Modifiers.Dialogs.Windows
         /// </summary>
         private void CreateMillisecondValue()
         {
-            MillisecondValue = new SpriteTextPlus(FontManager.GetWobbleFont(Fonts.LatoBlack), "ms", 24)
+            MillisecondValue = new SpriteTextPlus(FontManager.GetWobbleFont(Fonts.InterBold), "ms", 24)
             {
                 Parent = this,
                 Alignment = Alignment.MidLeft,
@@ -148,23 +149,30 @@ namespace Quaver.Shared.Screens.Selection.UI.Modifiers.Dialogs.Windows
         /// </summary>
         private void CreateValueTextbox()
         {
-            ValueTextbox = new Textbox(new ScalableVector2(52, 40), FontManager.GetWobbleFont(Fonts.LatoBlack),
+            ValueTextbox = new Textbox(new ScalableVector2(52, 40), FontManager.GetWobbleFont(Fonts.InterBold),
                 22, Bindable.Value.ToString(), "", null, s =>
                 {
                     if (string.IsNullOrEmpty(s))
                         return;
 
-                    int val = 1;
+                    int val;
 
                     try
                     {
-                        val = int.Parse(s);
-                        val = MathHelper.Clamp(val, 0, 500);
-                        Bindable.Value = val;
+                        if (int.TryParse(s, out val))
+                        {
+                            val = MathHelper.Clamp(val, 0, 500);
+                            Bindable.Value = val;
+                        }
+                        else
+                        {
+                            val = Bindable.Value;
+                        }
                     }
-                    catch (Exception)
+                    catch (Exception e)
                     {
-                        // ignored
+                        Logger.Error(e, LogType.Runtime);
+                        val = Bindable.Value;
                     }
 
                     ValueTextbox.RawText = val.ToString();

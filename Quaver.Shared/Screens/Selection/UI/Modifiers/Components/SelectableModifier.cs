@@ -8,6 +8,7 @@ using Quaver.Shared.Helpers;
 using Quaver.Shared.Modifiers;
 using Quaver.Shared.Modifiers.Mods;
 using Quaver.Shared.Online;
+using Quaver.Shared.Skinning;
 using Wobble;
 using Wobble.Graphics;
 using Wobble.Graphics.Sprites;
@@ -21,6 +22,15 @@ namespace Quaver.Shared.Screens.Selection.UI.Modifiers.Components
 {
     public class SelectableModifier : Button
     {
+        /// <summary>
+        ///    Whether the modifier selector is using the V2 layout.
+        /// </summary>
+        protected bool IsV2 => SkinManager.Skin?.UserInterfaceVersion >= 2f;
+
+        protected const float TotalWidth = 705f;
+        protected const float PanelHeight = 40f;
+        protected const float Padding = 10f;
+
         /// <summary>
         /// </summary>
         public ModifierSelector Selector { get; set; }
@@ -43,6 +53,10 @@ namespace Quaver.Shared.Screens.Selection.UI.Modifiers.Components
 
         /// <summary>
         /// </summary>
+        protected NineSliceSprite? Background { get; private set; }
+
+        /// <summary>
+        /// </summary>
         public Color OriginalColor { get; set; }
 
         /// <inheritdoc />
@@ -53,29 +67,33 @@ namespace Quaver.Shared.Screens.Selection.UI.Modifiers.Components
         public SelectableModifier(int width, IGameplayModifier mod)
         {
             Mod = mod;
-            Size = new ScalableVector2(width, 48);
-            Tint = ColorHelper.HexToColor("#464545");
 
             var game = GameBase.Game as QuaverGame;
             Depth = game?.CurrentScreen?.Type == QuaverScreenType.Editor ? 0 : 1;
 
-            const int paddingLeft = 10;
+            if (IsV2)
+                SetupV2Layout();
+            else
+                SetupV1Layout(width);
+
+            var iconWidth = IsV2 && Mod is ModJudgementWindows ? 66 : 60;
+            var iconSize = new ScalableVector2(iconWidth, 24);
 
             Icon = new Sprite
             {
                 Parent = this,
-                Size = new ScalableVector2(60, 30),
+                Size = iconSize,
                 Image = GetTexture(),
                 Alignment = Alignment.MidLeft,
-                X = paddingLeft,
+                X = Padding,
                 UsePreviousSpriteBatchOptions = true
             };
 
-            Name = new SpriteTextPlus(FontManager.GetWobbleFont(Fonts.LatoBlack), mod.Name.ToUpper(), 22)
+            Name = new SpriteTextPlus(FontManager.GetWobbleFont(Fonts.InterBold), mod.Name, 22)
             {
                 Parent = this,
                 Alignment = Alignment.MidLeft,
-                X = Icon.X + Icon.Width + paddingLeft,
+                X = Icon.X + Icon.Width + Padding,
                 UsePreviousSpriteBatchOptions = true,
                 Tint = Mod.ModColor
             };
@@ -107,6 +125,26 @@ namespace Quaver.Shared.Screens.Selection.UI.Modifiers.Components
             };
 
             ModManager.ModsChanged += OnModsChanged;
+        }
+
+        protected virtual void SetupV1Layout(int width)
+        {
+            Size = new ScalableVector2(width, 48);
+            Tint = ColorHelper.HexToColor("#464545");
+        }
+
+        protected virtual void SetupV2Layout()
+        {
+            Size = new ScalableVector2(TotalWidth, PanelHeight);
+            Tint = Color.Transparent;
+
+            Background = new NineSliceSprite(SkinManager.Skin?.SongSelect?.ModifierBackground ?? UserInterface.ModifierBackground, new SliceMargins(20))
+            {
+                Parent = this,
+                Alignment = Alignment.MidCenter,
+                Size = Size,
+                UsePreviousSpriteBatchOptions = true
+            };
         }
 
         /// <inheritdoc />
@@ -142,14 +180,27 @@ namespace Quaver.Shared.Screens.Selection.UI.Modifiers.Components
         {
             var game = GameBase.Game as QuaverGame;
 
-            if (DialogManager.Dialogs.Count != 0)
+            if (DialogManager.Dialogs.Count != 0 || JudgementWindowsDropdown.AnyOpened)
             {
                 if (game?.CurrentScreen?.Type != QuaverScreenType.Editor)
                     return;
             }
 
-            var color = ScreenRectangle.Contains(MouseManager.CurrentState.Position.ToPoint()) ? ColorHelper.HexToColor("#464545") : OriginalColor;
-            FadeToColor(color, gameTime.ElapsedGameTime.TotalMilliseconds, 30);
+            var isHovered = IsHovered;
+
+            if (IsV2)
+            {
+                if (Background != null)
+                {
+                    var texture = isHovered ? SkinManager.Skin?.SongSelect?.ModifierBackgroundHovered : SkinManager.Skin?.SongSelect?.ModifierBackground;
+                    Background.Image = texture ?? UserInterface.ModifierBackground;
+                }
+            }
+            else
+            {
+                var color = isHovered ? ColorHelper.HexToColor("#446C97") : OriginalColor;
+                FadeToColor(color, gameTime.ElapsedGameTime.TotalMilliseconds, 30);
+            }
         }
 
         /// <summary>
@@ -158,13 +209,13 @@ namespace Quaver.Shared.Screens.Selection.UI.Modifiers.Components
         /// <param name="e"></param>
         private void OnModsChanged(object sender, ModsChangedEventArgs e) => Icon.Image = GetTexture();
 
-        private Texture2D GetTexture()
+        protected virtual Texture2D GetTexture()
         {
             try
             {
                 if (Mod.GetType() == typeof(ModSpeed))
                     return TextureManager.Load($@"Quaver.Resources/Textures/UI/Mods/N-1.1x.png");
-                if (Mod.GetType() == typeof(ModJudgementWindows) || Mod.GetType() == typeof(ModLongNoteAdjust))
+                if (Mod.GetType() == typeof(ModJudgementWindows))
                     return TextureManager.Load($@"Quaver.Resources/Textures/UI/Mods/N-JW.png");
 
                 return ModManager.GetTexture(Mod.ModIdentifier, !ModManager.IsActivated(Mod.ModIdentifier));

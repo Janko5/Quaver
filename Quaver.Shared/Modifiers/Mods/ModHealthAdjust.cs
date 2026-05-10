@@ -4,7 +4,7 @@ using Quaver.Shared.Helpers;
 
 namespace Quaver.Shared.Modifiers.Mods
 {
-    public class ModLongNoteAdjust : IGameplayModifier
+    public class ModHealthAdjust : IGameplayModifier
     {
         public string Name { get; set; } = "Health Adjustments";
 
@@ -31,7 +31,7 @@ namespace Quaver.Shared.Modifiers.Mods
 
         public ModIdentifier[] IncompatibleMods { get; set; } = new ModIdentifier[] { };
 
-        public Color ModColor { get; } = ColorHelper.HexToColor("#F2C94C");
+        public Color ModColor { get; } = new Color(37, 200, 140);
 
         public void InitializeMod()
         {

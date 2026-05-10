@@ -14,21 +14,24 @@ using Wobble.Graphics.Animations;
 using Wobble.Graphics.Sprites;
 using Wobble.Graphics.UI.Buttons;
 using Wobble.Input;
+using Quaver.Shared.Skinning;
 
 namespace Quaver.Shared.Screens.Selection.UI.Modifiers
 {
     public class ModifierSelector : ScrollContainer
     {
-        /// <summary>
-        /// </summary>
         private List<ModifierSection> Sections { get; }
 
-        /// <summary>
-        /// </summary>
         private Bindable<SelectContainerPanel> ActiveLeftPanel { get; }
 
         /// <summary>
+        ///    Whether the modifier selector is using the V2 layout.
         /// </summary>
+        private bool IsV2 { get; }
+
+        private const float ItemPadding = 10f;
+        private const float SectionSpacing = 8f;
+
         private Sprite ButtonBackground { get; set; }
 
         /// <summary>
@@ -36,17 +39,11 @@ namespace Quaver.Shared.Screens.Selection.UI.Modifiers
         /// </summary>
         public Tooltip ActiveTooltip { get; set; }
 
-        /// <summary>
-        /// </summary>
         private ImageButton ResetModifiersButton { get; set; }
 
-        /// <summary>
-        /// </summary>
         private ImageButton ClosePanelButton { get; set; }
 
         /// <inheritdoc />
-        /// <summary>
-        /// </summary>
         /// <param name="activeLeftPanel"></param>
         /// <param name="size"></param>
         /// <param name="sections"></param>
@@ -55,14 +52,13 @@ namespace Quaver.Shared.Screens.Selection.UI.Modifiers
             ActiveLeftPanel = activeLeftPanel;
             Sections = sections;
             Alpha = 0;
+            IsV2 = SkinManager.Skin?.UserInterfaceVersion >= 2f;
 
             AlignAndContainSections();
             CreateButtons();
         }
 
         /// <inheritdoc />
-        /// <summary>
-        /// </summary>
         /// <param name="gameTime"></param>
         public override void Update(GameTime gameTime)
         {
@@ -82,6 +78,9 @@ namespace Quaver.Shared.Screens.Selection.UI.Modifiers
             {
                 var section = Sections[i];
 
+                if (IsV2 && i > 0)
+                    totalY += SectionSpacing;
+
                 AddContainedDrawable(section.Header);
                 section.Header.Y = totalY;
                 totalY += section.Header.Height;
@@ -92,29 +91,30 @@ namespace Quaver.Shared.Screens.Selection.UI.Modifiers
                     var mod = section.Modifiers[j];
                     mod.Selector = this;
 
-                    // mod.OriginalColor = j % 2 == 0 ? ColorHelper.HexToColor("#363636") : ColorHelper.HexToColor("#242424");
-                    mod.OriginalColor = ColorHelper.HexToColor("#242424");
+                    mod.OriginalColor = ColorHelper.HexToColor("#273038");
                     AddContainedDrawable(mod);
 
                     mod.Y = totalY;
-                    totalY += mod.Height;
+                    mod.X = IsV2 ? ItemPadding : mod.X;
+                    totalY += mod.Height + (IsV2 ? ItemPadding : 0);
                 }
             }
         }
 
-        /// <summary>
-        /// </summary>
         private void CreateButtons()
         {
+            if (IsV2)
+                return;
+
             ButtonBackground = new Sprite
             {
                 Parent = this,
                 Alignment = Alignment.BotLeft,
                 Size = new ScalableVector2(Width, 83),
-                Tint = ColorHelper.HexToColor("#181818")
+                Tint = ColorHelper.HexToColor("#181E25")
             };
 
-            ResetModifiersButton = new IconButton(UserInterface.EditPlayButton, (sender, args) =>
+            ResetModifiersButton = new IconButton(UserInterface.ResetMods, (sender, args) =>
             {
                 if (OnlineManager.CurrentGame != null &&
                     (OnlineManager.CurrentGame.HostId != OnlineManager.Self?.OnlineUser?.Id && OnlineManager.CurrentGame.FreeModType == 0))
@@ -129,10 +129,9 @@ namespace Quaver.Shared.Screens.Selection.UI.Modifiers
                 Alignment = Alignment.MidLeft,
                 Size = new ScalableVector2(250, 38),
                 X = 12,
-                Image = UserInterface.ResetMods
             };
 
-            ClosePanelButton = new IconButton(UserInterface.EditPlayButton, (sender, args) =>
+            ClosePanelButton = new IconButton(UserInterface.ClosePanel, (sender, args) =>
             {
                 if (ActiveLeftPanel == null)
                     return;
@@ -155,7 +154,6 @@ namespace Quaver.Shared.Screens.Selection.UI.Modifiers
                 Alignment = Alignment.MidRight,
                 Size = new ScalableVector2(250, 38),
                 X = -ResetModifiersButton.X,
-                Image = UserInterface.ClosePanel
             };
         }
 
@@ -180,15 +178,26 @@ namespace Quaver.Shared.Screens.Selection.UI.Modifiers
             ActiveTooltip.FadeTo(1, Easing.Linear, 150);
         }
 
-        /// <summary>
-        /// </summary>
+        private Vector2 _previousMousePosition;
+
+        private Vector2 _previousAbsolutePosition;
+
         private void HandleTooltipAnimation()
         {
             if (ActiveTooltip == null)
                 return;
 
-            ActiveTooltip.X = MathHelper.Clamp(MouseManager.CurrentState.X - AbsolutePosition.X - ActiveTooltip.Width / 2f, 5, Width - ActiveTooltip.Width - 5);
-            ActiveTooltip.Y = MathHelper.Clamp(MouseManager.CurrentState.Y - AbsolutePosition.Y - ActiveTooltip.Height - 2, 5, Height - ActiveTooltip.Height - 5);
+            var currentMouse = MouseManager.CurrentState.Position;
+            var currentAbsolutePos = AbsolutePosition;
+
+            if (currentMouse == _previousMousePosition && currentAbsolutePos == _previousAbsolutePosition)
+                return;
+
+            _previousMousePosition = currentMouse;
+            _previousAbsolutePosition = currentAbsolutePos;
+
+            ActiveTooltip.X = MathHelper.Clamp(currentMouse.X - AbsolutePosition.X - ActiveTooltip.Width / 2f, 5, Width - ActiveTooltip.Width - 5);
+            ActiveTooltip.Y = MathHelper.Clamp(currentMouse.Y - AbsolutePosition.Y - ActiveTooltip.Height - 2, 5, Height - ActiveTooltip.Height - 5);
         }
     }
 }

@@ -1,4 +1,4 @@
-﻿using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework;
 using Quaver.API.Enums;
 using Quaver.Shared.Helpers;
 
@@ -28,7 +28,7 @@ namespace Quaver.Shared.Modifiers.Mods
             ModIdentifier.NoFail
         };
 
-        public Color ModColor { get; } = ColorHelper.HexToColor("#EB5757");
+        public Color ModColor { get; } = new Color(255, 58, 111);
 
         public void InitializeMod()
         {

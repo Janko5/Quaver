@@ -22,6 +22,11 @@ namespace Quaver.Shared.Database.Judgements
         public static Bindable<JudgementWindows> Selected { get; private set; }
 
         /// <summary>
+        ///     Invoked when the list of presets changes.
+        /// </summary>
+        public static event EventHandler PresetsChanged;
+
+        /// <summary>
         ///     Standard judgement windows
         /// </summary>
         public static JudgementWindows Standard { get; private set; }
@@ -145,7 +150,15 @@ namespace Quaver.Shared.Database.Judgements
         {
             try
             {
-                return DatabaseManager.Connection.Insert(windows);
+                var result = DatabaseManager.Connection.Insert(windows);
+
+                if (result != -1 && !Presets.Contains(windows))
+                {
+                    Presets.Add(windows);
+                    NotifyPresetsChanged();
+                }
+
+                return result;
             }
             catch (Exception e)
             {
@@ -176,6 +189,12 @@ namespace Quaver.Shared.Database.Judgements
             try
             {
                 DatabaseManager.Connection.Delete(windows);
+
+                if (Presets.Contains(windows))
+                {
+                    Presets.Remove(windows);
+                    NotifyPresetsChanged();
+                }
             }
             catch (Exception e)
             {
@@ -196,11 +215,18 @@ namespace Quaver.Shared.Database.Judgements
 
                     Update(preset);
                 }
+
+                NotifyPresetsChanged();
             }
             catch (Exception e)
             {
                 Logger.Error(e, LogType.Runtime);
             }
         }
+
+        /// <summary>
+        ///     Invokes <see cref="PresetsChanged"/>
+        /// </summary>
+        public static void NotifyPresetsChanged() => PresetsChanged?.Invoke(null, EventArgs.Empty);
     }
 }

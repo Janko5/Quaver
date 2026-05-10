@@ -174,7 +174,7 @@ namespace Quaver.Shared.Modifiers
                         mods.Add(new ModCoop());
                         break;
                     case ModIdentifier.HeatlthAdjust:
-                        mods.Add(new ModLongNoteAdjust());
+                        mods.Add(new ModHealthAdjust());
                         break;
                     case ModIdentifier.NoPause:
                         break;
@@ -199,6 +199,9 @@ namespace Quaver.Shared.Modifiers
             {
                 // Try to find the removed gameplayModifier in the list
                 var removedMod = CurrentModifiersList.Find(x => x.ModIdentifier == modIdentifier);
+
+                if (removedMod == null)
+                    return;
 
                 // Remove the Mod
                 CurrentModifiersList.Remove(removedMod);

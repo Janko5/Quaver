@@ -1,11 +1,13 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Quaver.API.Maps.Processors.Scoring;
+using Quaver.Shared.Assets;
 using Quaver.Shared.Graphics.Form.Dropdowns;
 using Quaver.Shared.Graphics.Form.Dropdowns.Custom;
 using Quaver.Shared.Helpers;
 using Wobble.Bindables;
 using Wobble.Graphics;
+using Wobble.Managers;
 
 namespace Quaver.Shared.Screens.Selection.UI.Modifiers.Dialogs.Windows
 {
@@ -16,7 +18,8 @@ namespace Quaver.Shared.Screens.Selection.UI.Modifiers.Dialogs.Windows
         protected Bindable<JudgementWindows> SelectedWindow { get; }
 
         public JudgementWindowDropdown(Bindable<JudgementWindows> selectedWindow, string label, List<string> options) : base(label, 24,
-            new Dropdown(options, new ScalableVector2(150, 40), 24, ColorHelper.HexToColor("#10C8F6")))
+            new Dropdown(options, new ScalableVector2(150, 40), 24, ColorHelper.HexToColor("#10C8F6"), font: FontManager.GetWobbleFont(Fonts.InterBold)),
+            FontManager.GetWobbleFont(Fonts.InterBold))
         {
             SelectedWindow = selectedWindow;
             SelectedWindow.ValueChanged += OnSelectedWindowChanged;

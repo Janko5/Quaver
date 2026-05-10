@@ -1,4 +1,4 @@
-﻿using Quaver.API.Enums;
+using Quaver.API.Enums;
 using Quaver.API.Maps.Processors.Scoring;
 using System.Collections.Generic;
 using Wobble.Bindables;

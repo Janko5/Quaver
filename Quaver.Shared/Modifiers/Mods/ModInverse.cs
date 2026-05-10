@@ -24,7 +24,7 @@ namespace Quaver.Shared.Modifiers.Mods
 
         public ModIdentifier[] IncompatibleMods { get; set; } = { ModIdentifier.NoLongNotes, ModIdentifier.FullLN };
 
-        public Color ModColor { get; } = ColorHelper.HexToColor("#F2994A");
+        public Color ModColor { get; } = new Color(255, 173, 58);
 
         public void InitializeMod() { }
     }
