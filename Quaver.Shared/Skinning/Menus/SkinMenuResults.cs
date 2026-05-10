@@ -26,7 +26,7 @@ namespace Quaver.Shared.Skinning.Menus
         public Texture2D ResultsMultiplayerFFAPanel { get; private set; }
         public Texture2D ResultsBackground { get; private set; }
         public ResultsBackgroundType ResultsBackgroundType { get; private set; }
-        public float? ResultsBackgroundFilterAlpha { get; private set; }
+        public float ResultsBackgroundFilterAlpha { get; private set; } = 0f;
 
         public SkinMenuResults(SkinStore store, IniData config) : base(store, config)
         {
@@ -37,10 +37,10 @@ namespace Quaver.Shared.Skinning.Menus
             var ini = Config["Results"];
 
             var resultsBackgroundType = ini["ResultsBackgroundType"];
-            ReadIndividualConfig(resultsBackgroundType, () => ResultsBackgroundType = ConfigHelper.ReadEnum(ResultsBackgroundType.Header, resultsBackgroundType));
+            ResultsBackgroundType = ConfigHelper.ReadEnum(ResultsBackgroundType.Header, resultsBackgroundType);
 
             var resultsBackgroundFilterAlpha = ini["ResultsBackgroundFilterAlpha"];
-            ReadIndividualConfig(resultsBackgroundFilterAlpha, () => ResultsBackgroundFilterAlpha = ConfigHelper.ReadFloat(0f, resultsBackgroundFilterAlpha));
+            ResultsBackgroundFilterAlpha = ConfigHelper.ReadFloat(ResultsBackgroundFilterAlpha, resultsBackgroundFilterAlpha);
         }
 
         protected override void LoadElements()

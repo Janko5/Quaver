@@ -12,6 +12,8 @@ using Microsoft.Xna.Framework.Graphics;
 using Quaver.Shared.Skinning;
 using Wobble.Graphics.Animations;
 using Wobble.Graphics.UI.Buttons;
+using Wobble.Input;
+using Wobble.Managers;
 
 namespace Quaver.Shared.Screens.Menu.UI.Jukebox
 {
@@ -33,8 +35,12 @@ namespace Quaver.Shared.Screens.Menu.UI.Jukebox
         {
             var dt = gameTime.ElapsedGameTime.TotalMilliseconds;
 
+            // Failsafe: verify if the mouse is actually over the button.
+            // This fixes "sticky hover" issues when Wobble fails to emit LeftHover events.
+            var isActuallyHovered = IsHovered && ScreenRectangle.Contains(MouseManager.CurrentState.Position);
+
             if (IsPerformingFadeAnimations)
-                Alpha = MathHelper.Lerp(Alpha, IsHovered ? 0.75f : 1, (float) Math.Min(dt / 60, 1));
+                Alpha = MathHelper.Lerp(Alpha, isActuallyHovered ? 0.75f : 1, (float) Math.Min(dt / 60, 1));
 
             base.Update(gameTime);
         }

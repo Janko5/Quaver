@@ -266,6 +266,9 @@ namespace Quaver.Shared.Screens.Gameplay.Rulesets.Keys.Playfield
         /// </summary>
         private void CreateStageLeft()
         {
+            if (Screen.IsSongSelectPreview)
+                return;
+
             // Create the left side of the stage.
             var stageLeftX = Skin.StageLeftBorder.Width * WindowManager.Height / Skin.StageLeftBorder.Height;
 
@@ -284,6 +287,9 @@ namespace Quaver.Shared.Screens.Gameplay.Rulesets.Keys.Playfield
         /// </summary>
         private void CreateStageRight()
         {
+            if (Screen.IsSongSelectPreview)
+                return;
+
             // Create the right side of the stage.
             var stageRightX = Skin.StageRightBorder.Width * WindowManager.Height / Skin.StageRightBorder.Height;
 
@@ -565,11 +571,13 @@ namespace Quaver.Shared.Screens.Gameplay.Rulesets.Keys.Playfield
                     HitBubbles.Alignment = Alignment.BotCenter;
                     break;
                 case HitBubblesAlignment.RightStage:
-                    HitBubbles.Parent = StageRight;
+                    if (StageRight != null)
+                        HitBubbles.Parent = StageRight;
                     HitBubbles.Alignment = Alignment.MidLeft;
                     break;
                 case HitBubblesAlignment.LeftStage:
-                    HitBubbles.Parent = StageLeft;
+                    if (StageLeft != null)
+                        HitBubbles.Parent = StageLeft;
                     HitBubbles.Alignment = Alignment.MidRight;
                     break;
                 default:
@@ -669,12 +677,14 @@ namespace Quaver.Shared.Screens.Gameplay.Rulesets.Keys.Playfield
             switch (SkinManager.Skin.Keys[MapManager.Selected.Value.Mode].HealthBarKeysAlignment)
             {
                 case HealthBarKeysAlignment.LeftStage:
-                    HealthBar.Parent = StageLeft;
+                    if (StageLeft != null)
+                        HealthBar.Parent = StageLeft;
                     HealthBar.X = -5;
                     HealthBar.Y = -10;
                     break;
                 case HealthBarKeysAlignment.RightStage:
-                    HealthBar.Parent = StageRight;
+                    if (StageRight != null)
+                        HealthBar.Parent = StageRight;
                     HealthBar.X = 5;
                     HealthBar.Y = -10;
                     break;
@@ -842,11 +852,17 @@ namespace Quaver.Shared.Screens.Gameplay.Rulesets.Keys.Playfield
                 }
             });
 
-            StageLeft.Alpha = 0;
-            StageLeft.FadeTo(1, Easing.Linear, time);
+            if (StageLeft != null)
+            {
+                StageLeft.Alpha = 0;
+                StageLeft.FadeTo(1, Easing.Linear, time);
+            }
 
-            StageRight.Alpha = 0;
-            StageRight.FadeTo(1, Easing.Linear, time);
+            if (StageRight != null)
+            {
+                StageRight.Alpha = 0;
+                StageRight.FadeTo(1, Easing.Linear, time);
+            }
         }
     }
 }

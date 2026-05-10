@@ -16,6 +16,7 @@ using Quaver.Shared.Screens.Gameplay.Rulesets.Keys.HitObjects;
 using Quaver.Shared.Skinning;
 using Wobble.Graphics;
 using Wobble.Graphics.Sprites;
+using Wobble.Window;
 
 namespace Quaver.Shared.Screens.Gameplay.Rulesets.Keys.Playfield
 {
@@ -89,15 +90,19 @@ namespace Quaver.Shared.Screens.Gameplay.Rulesets.Keys.Playfield
             Alpha = 1;
 
             var skinScale = IsHoldingLongNote ? skin.HoldLightingScale : skin.HitLightingScale;
-            var scale = skinScale / 100f;
+
+            var previewScale = Playfield.Screen.IsSongSelectPreview
+                ? Playfield.LaneSize / skin.ColumnSize
+                : Playfield.LaneSize / (skin.ColumnSize * WindowManager.BaseToVirtualRatio);
+            var scale = (skinScale / 100f) * previewScale;
 
             Size = new ScalableVector2(Image.Width * scale, Image.Height * scale);
 
             var relativeRect = new RectangleF(0, 0, RelativeRectangle.Width, RelativeRectangle.Height);
             var pos = GraphicsHelper.AlignRect(Alignment.MidCenter, relativeRect, Playfield.Stage.Receptors[ColumnIndex].ScreenRectangle);
 
-            Position = new ScalableVector2(pos.X - Playfield.ForegroundContainer.ScreenRectangle.X + skin.HitLightingX,
-                pos.Y - Playfield.ForegroundContainer.ScreenRectangle.Y + skin.HitLightingY);
+            Position = new ScalableVector2(pos.X - Playfield.ForegroundContainer.ScreenRectangle.X + (skin.HitLightingX * previewScale),
+                pos.Y - Playfield.ForegroundContainer.ScreenRectangle.Y + (skin.HitLightingY * previewScale));
 
             // Rotation
             var rotate = IsHoldingLongNote ? skin.HoldLightingColumnRotation : skin.HitLightingColumnRotation;

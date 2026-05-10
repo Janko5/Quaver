@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using Quaver.API.Maps.AutoMod.Issues;
 using Quaver.Shared.Graphics;
 using Quaver.Shared.Graphics.Form.Dropdowns;
@@ -20,7 +20,7 @@ namespace Quaver.Shared.Screens.Edit.UI.AutoMods
             Dropdown.Items.ForEach(x => x.Depth = -1);
         }
 
-        private static List<string> GetOptions() => new List<string>()
+        private static List<string> GetOptions() => new()
         {
             "All",
             "Files",

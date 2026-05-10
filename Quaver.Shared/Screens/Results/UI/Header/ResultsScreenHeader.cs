@@ -84,7 +84,7 @@ namespace Quaver.Shared.Screens.Results.UI.Header
             {
                 Parent = this,
                 Size = new ScalableVector2(WindowManager.Width, SkinManager.Skin.Results.ResultsBackgroundType != ResultsBackgroundType.Header ? WindowManager.Height : Background.Height),
-                Alpha = SkinManager.Skin?.Results?.ResultsBackgroundFilterAlpha ?? 1f,
+                Alpha = SkinManager.Skin.Results.ResultsBackgroundFilterAlpha,
                 Image = SkinManager.Skin?.Results?.ResultsBackgroundFilter ?? UserInterface.ResultsBackgroundFilter
             };
         }

@@ -37,7 +37,7 @@ namespace Quaver
 
         /// <summary>
         /// </summary>
-        private static string Guid = "9151537b-304c-4619-bf54-d367ba7d87ac";
+        private static readonly string Guid = "9151537b-304c-4619-bf54-d367ba7d87ac";
 
         /// <summary>
         ///     The name of the pipe used for IPC
@@ -48,24 +48,18 @@ namespace Quaver
         public static void Main(string[] args)
         {
             // Prevents more than one instance of Quaver to run at a time
-            using (var mutex = new Mutex(false, "Global\\" + Guid))
+            using var mutex = new Mutex(false, "Global\\" + Guid);
+            if (!mutex.WaitOne(0, false))
             {
-                if (!mutex.WaitOne(0, false))
-                {
-                    Logger.Error("Quaver is already running", LogType.Runtime);
+                Logger.Error("Quaver is already running", LogType.Runtime);
 
-                    // Send to running instance only if we have actual data to send
-                    if (args.Length > 0)
-                        SendToRunningInstanceIpc(args);
+                // Send to running instance only if we have actual data to send
+                if (args.Length > 0)
+                    SendToRunningInstanceIpc(args);
 
-                    return;
-                }
-
-                Run();
                 return;
             }
 
-            // Uncomment this and comment the above mutex to allow multiple instances of Quaver to be run
             Run();
         }
 
@@ -115,7 +109,7 @@ namespace Quaver
 #if VISUAL_TESTS
             using (var game = new QuaverGame(new HotLoader("../../../../Quaver.Shared/")))
 #else
-            using (var game = new QuaverGame())
+            using var game = new QuaverGame();
 #endif
                 game.Run();
         }
@@ -198,7 +192,7 @@ namespace Quaver
         static class Kernel32
         {
             [DllImport("kernel32.dll", BestFitMapping = false, CharSet = CharSet.Ansi, SetLastError = true)]
-            internal static extern nint GetModuleHandle(string moduleName);
+            internal static extern nint GetModuleHandle([MarshalAs(UnmanagedType.LPStr)] string moduleName);
 
             [DllImport("kernel32.dll", CharSet = CharSet.Ansi, SetLastError = true)]
             internal static extern nint GetProcAddress(

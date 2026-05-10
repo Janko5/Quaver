@@ -164,7 +164,7 @@ namespace Quaver.Shared.Screens.Main.UI.News
                 Parent = Container,
                 X = 14,
                 Y = Banner.Y + Banner.Height + 16,
-                Tint = SkinManager.Skin?.MainMenu?.NewsTitleColor ?? ColorHelper.HexToColor("#45D6F5"),
+                Tint = SkinManager.Skin.MainMenu.NewsTitleColor,
                 Alpha = 0
             };
 
@@ -180,7 +180,7 @@ namespace Quaver.Shared.Screens.Main.UI.News
                 Parent = Container,
                 X = Title.X,
                 Y = Title.Y + Title.Height + 12,
-                Tint = SkinManager.Skin?.MainMenu?.NewsDateColor ?? ColorHelper.HexToColor("#808080"),
+                Tint = SkinManager.Skin.MainMenu.NewsDateColor,
                 Alpha = 0
             };
 
@@ -196,7 +196,7 @@ namespace Quaver.Shared.Screens.Main.UI.News
                 Y = TimeAgo.Y + TimeAgo.Height + 12,
                 MaxWidth = Container.Width - 20,
                 Alpha = 0,
-                Tint = SkinManager.Skin?.MainMenu?.NewsTextColor ?? Color.White
+                Tint = SkinManager.Skin.MainMenu.NewsTextColor
             };
 
             ShortText.TruncateWithEllipsis((int) ShortText.MaxWidth * 2 - 100);

@@ -382,7 +382,9 @@ namespace Quaver.Shared.Screens.Gameplay.Rulesets.Keys.Playfield
         public void Update(GameTime gameTime)
         {
             Stage.Update(gameTime);
-            Container?.Update(gameTime);
+
+            if (!Screen.IsSongSelectPreview)
+                Container?.Update(gameTime);
         }
 
         /// <inheritdoc />

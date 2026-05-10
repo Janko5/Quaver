@@ -123,7 +123,7 @@ namespace Quaver.Shared.Screens.Downloading
                 DownloadingScreen.MinBpm, DownloadingScreen.MaxBpm, DownloadingScreen.MinLength, DownloadingScreen.MaxLength,
                 DownloadingScreen.MinLongNotePercent, DownloadingScreen.MaxLongNotePercent,
                 DownloadingScreen.MinPlayCount, DownloadingScreen.MaxPlayCount, DownloadingScreen.MinUploadDate,
-                DownloadingScreen.MaxUploadDate, DownloadingScreen.SelectedMapset, DownloadingScreen.DisplayOwnedMapsets, 
+                DownloadingScreen.MaxUploadDate, DownloadingScreen.SelectedMapset, DownloadingScreen.DisplayOwnedMapsets,
                 DownloadingScreen.MinLastUpdateDate, DownloadingScreen.MaxLastUpdateDate,
                 DownloadingScreen.MinCombo, DownloadingScreen.MaxCombo, DownloadingScreen.DisplayExplicitMapsets)
             {

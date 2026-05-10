@@ -436,7 +436,8 @@ namespace Quaver.Shared.Screens.Gameplay
             {
                 try
                 {
-                    CustomAudioSampleCache.LoadSamples(MapManager.Selected.Value, MapHash);
+                    if (MapManager.Selected.Value != null)
+                        CustomAudioSampleCache.LoadSamples(MapManager.Selected.Value, MapHash);
                 }
                 catch (Exception e)
                 {
@@ -1465,6 +1466,9 @@ namespace Quaver.Shared.Screens.Gameplay
 
         private void HandleSoundEffects()
         {
+            if (!ConfigManager.EnableKeysounds.Value)
+                return;
+
             var game = GameBase.Game as QuaverGame;
 
             // Disable hitsounds for left panel screens if the map preview isnt active

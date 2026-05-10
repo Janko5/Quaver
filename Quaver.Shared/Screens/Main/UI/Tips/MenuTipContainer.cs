@@ -96,7 +96,7 @@ namespace Quaver.Shared.Screens.Main.UI.Tips
             Parent = this,
             Alignment = Alignment.MidLeft,
             X = 16,
-            Tint = SkinManager.Skin?.MainMenu?.TipTitleColor ?? ColorHelper.HexToColor("#45D6F5")
+            Tint = SkinManager.Skin.MainMenu.TipTitleColor
         };
 
         /// <summary>
@@ -123,7 +123,7 @@ namespace Quaver.Shared.Screens.Main.UI.Tips
             TextTip = new SpriteTextPlus(FontManager.GetWobbleFont(Fonts.LatoBlack), Tips[12], Label.FontSize)
             {
                 Alignment = Alignment.MidLeft,
-                Tint = SkinManager.Skin?.MainMenu?.TipTextColor ?? Color.White
+                Tint = SkinManager.Skin.MainMenu.TipTextColor
             };
 
             ScrollingContainer.AddContainedDrawable(TextTip);

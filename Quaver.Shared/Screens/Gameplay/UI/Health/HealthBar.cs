@@ -17,6 +17,7 @@ using Wobble;
 using Wobble.Graphics;
 using Wobble.Graphics.Shaders;
 using Wobble.Graphics.Sprites;
+using Quaver.Shared.Graphics.Shaders;
 
 namespace Quaver.Shared.Screens.Gameplay.UI.Health
 {
@@ -65,7 +66,7 @@ namespace Quaver.Shared.Screens.Gameplay.UI.Health
                     SamplerState = SamplerState.PointClamp,
                     DepthStencilState = DepthStencilState.Default,
                     RasterizerState = RasterizerState.CullNone,
-                    Shader = new Shader(GameBase.Game.Resources.Get("Quaver.Resources/Shaders/semi-transparent.mgfxo"), new Dictionary<string, object>()
+                    Shader = ShaderManager.CreateShader("Quaver.Resources/Shaders/semi-transparent.mgfxo", new Dictionary<string, object>()
                     {
                         {"p_position", new Vector2()},
                         {"p_rectangle", new Vector2()},

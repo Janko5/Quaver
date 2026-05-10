@@ -20,6 +20,7 @@ using Wobble.Graphics.UI.Buttons;
 using Wobble.Graphics.UI.Dialogs;
 using Wobble.Input;
 using Wobble.Managers;
+using Quaver.Shared.Graphics.Shaders;
 
 namespace Quaver.Shared.Screens.Gameplay.UI.Replays
 {
@@ -183,7 +184,7 @@ namespace Quaver.Shared.Screens.Gameplay.UI.Replays
                     SamplerState = SamplerState.PointClamp,
                     DepthStencilState = DepthStencilState.Default,
                     RasterizerState = RasterizerState.CullNone,
-                    Shader = new Shader(GameBase.Game.Resources.Get("Quaver.Resources/Shaders/semi-transparent.mgfxo"),
+                    Shader = ShaderManager.CreateShader("Quaver.Resources/Shaders/semi-transparent.mgfxo",
                         new Dictionary<string, object>()
                     {
                         {"p_position", new Vector2(0, 0)},

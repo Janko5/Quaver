@@ -232,7 +232,7 @@ namespace Quaver.Shared.Screens.Main.UI.Jukebox
         private void CreateProgressBar()
         {
             ProgressBar = new JukeboxProgressBar(new Vector2(Width - 4, 2), 0, int.MaxValue,
-                0, Color.Gray, SkinManager.Skin?.MainMenu?.JukeboxProgressBarColor ?? Colors.SecondaryAccent)
+                0, Color.Gray, SkinManager.Skin.MainMenu.JukeboxProgressBarColor)
             {
                 Parent = this,
                 Alignment = Alignment.BotCenter,

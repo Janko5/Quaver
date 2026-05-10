@@ -180,8 +180,6 @@ namespace Quaver.Shared.Assets
 
         public static Texture2D StatusPanel => TextureManager.Load("Quaver.Resources/Textures/UI/SongSelect/Mapset/status-panel.png");
         public static Texture2D DefaultBanner => TextureManager.Load("Quaver.Resources/Textures/UI/SongSelect/Mapset/default-banner.png");
-        public static Texture2D DifficultyBarBackground => DifficultyDeselected;
-        public static Texture2D DifficultyBarColor => DifficultySelected;
         public static Texture2D MapsetBannerMask => TextureManager.Load("Quaver.Resources/Textures/Skins/Shared/SongSelect/mapset-banner-mask.png");
         public static Texture2D PlaylistBannerMask => TextureManager.Load("Quaver.Resources/Textures/Skins/Shared/SongSelect/playlist-banner-mask.png");
 
@@ -190,9 +188,6 @@ namespace Quaver.Shared.Assets
         public static Texture2D LeaderboardWarning => TextureManager.Load(@"Quaver.Resources/Textures/Skins/Shared/SongSelect/leaderboard-warning.png");
         public static Texture2D LeaderboardInfo => TextureManager.Load(@"Quaver.Resources/Textures/Skins/Shared/SongSelect/leaderboard-info.png");
         public static Texture2D LeaderboardClock => TextureManager.Load(@"Quaver.Resources/Textures/UI/SongSelect/LeftPanel/leaderboard-clock.png");
-        public static Texture2D LeaderboardScoresPanel => LeaderboardPanel;
-        public static Texture2D WarningRed => LeaderboardWarning;
-        public static Texture2D Clock => LeaderboardClock;
         public static Texture2D SongSelectTrophy => TextureManager.Load(@"Quaver.Resources/Textures/UI/SongSelect/LeftPanel/icon-trophy.png");
         public static Texture2D MapsetLengthIcon => TextureManager.Load(@"Quaver.Resources/Textures/UI/SongSelect/Mapset/mapset-panel-length-icon.png");
         public static Texture2D MapsetBpmIcon => TextureManager.Load(@"Quaver.Resources/Textures/UI/SongSelect/Mapset/mapset-panel-bpm-icon.png");
@@ -284,13 +279,6 @@ namespace Quaver.Shared.Assets
         public static Texture2D PlayercardLogoutIcon => TextureManager.Load(@"Quaver.Resources/Textures/UI/MenuBorder/Playercard/icon-logout.png");
         public static Texture2D PlayercardViewProfileIcon => TextureManager.Load(@"Quaver.Resources/Textures/UI/MenuBorder/Playercard/icon-view-profile.png");
         public static Texture2D PlayercardInfoBackground => TextureManager.Load(@"Quaver.Resources/Textures/Skins/Shared/MenuBorder/playercard-info-background.png");
-        public static Texture2D OfflinePlayercardPanel => PlayercardBackgroundMask;
-        public static Texture2D UserPlayercardPanel => PlayercardBackgroundMask;
-        public static Texture2D LoginButtonPlayercard => PlayercardLoginIcon;
-        public static Texture2D LogoutButtonPlayercard => PlayercardLogoutIcon;
-        public static Texture2D ViewProfileButtonPlayercard => PlayercardViewProfileIcon;
-        public static Texture2D Mode4KOn => PlayercardSwitch4K;
-        public static Texture2D Mode7KOn => PlayercardSwitch7K;
         public static Texture2D PlayercardRoleAdministrator => TextureManager.Load(@"Quaver.Resources/Textures/UI/MenuBorder/Playercard/role-administrator.png");
         public static Texture2D PlayercardRoleDeveloper => TextureManager.Load(@"Quaver.Resources/Textures/UI/MenuBorder/Playercard/role-developer.png");
         public static Texture2D PlayercardRoleModerator => TextureManager.Load(@"Quaver.Resources/Textures/UI/MenuBorder/Playercard/role-moderator.png");
@@ -313,8 +301,6 @@ namespace Quaver.Shared.Assets
         public static Texture2D VolumeIconMaster => TextureManager.Load(@"Quaver.Resources/Textures/UI/Volume/icon-master-volume.png");
         public static Texture2D VolumeIconMusic => TextureManager.Load(@"Quaver.Resources/Textures/UI/Volume/icon-music-volume.png");
         public static Texture2D VolumeIconEffect => TextureManager.Load(@"Quaver.Resources/Textures/UI/Volume/icon-effect-volume.png");
-        public static Texture2D MusicVolumeIcon => VolumeIconMusic;
-        public static Texture2D EffectVolumeIcon => VolumeIconEffect;
 
         public static Texture2D VolumeSliderElement => SkinManager.Skin?.VolumeController?.LoadSkinElement("Volume", "volume-slider-element") ?? TextureManager.Load(@"Quaver.Resources/Textures/Skins/Shared/Volume/volume-slider-element.png");
 
@@ -349,9 +335,6 @@ namespace Quaver.Shared.Assets
         public static Texture2D OptionsMisc => TextureManager.Load(@"Quaver.Resources/Textures/UI/Options/options-misc.png");
         public static Texture2D DetectOtherGamesButton => TextureManager.Load(@"Quaver.Resources/Textures/UI/Options/detect-other-games-button.png");
         public static Texture2D GrayedMapset => TextureManager.Load(@"Quaver.Resources/Textures/UI/SongSelect/Mapset/grayed-mapset.png");
-        public static Texture2D DeleteButton => JudgementWindowDeleteButton;
-        public static Texture2D ViewScoresButton => PlayercardViewProfileIcon;
-        public static Texture2D EditPlayButton => PlayercardViewProfileIcon;
 
         public static Texture2D EditorZoomIn => TextureManager.Load(@"Quaver.Resources/Textures/UI/Editor/editor-zoom-in.png");
         public static Texture2D EditorZoomOut => TextureManager.Load(@"Quaver.Resources/Textures/UI/Editor/editor-zoom-out.png");

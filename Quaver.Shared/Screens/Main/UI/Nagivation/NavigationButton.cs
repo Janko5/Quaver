@@ -62,7 +62,7 @@ namespace Quaver.Shared.Screens.Main.UI.Nagivation
         public override void Update(GameTime gameTime)
         {
             HoverEffect.Size = new ScalableVector2(Width - 4, Height - 4);
-            HoverEffect.Alpha = IsHovered ? (SkinManager.Skin?.MainMenu?.NavigationButtonHoveredAlpha ?? 0.35f) : 0;
+            HoverEffect.Alpha = IsHovered ? SkinManager.Skin.MainMenu.NavigationButtonHoveredAlpha : 0;
 
             base.Update(gameTime);
         }
@@ -74,7 +74,7 @@ namespace Quaver.Shared.Screens.Main.UI.Nagivation
             Size = new ScalableVector2(20, 20),
             X = 20,
             Image = icon,
-            Tint = SkinManager.Skin?.MainMenu?.NavigationButtonTextColor ?? Color.White
+            Tint = SkinManager.Skin.MainMenu.NavigationButtonTextColor
         };
 
         private void CreateName(string name) => Name = new SpriteTextPlus(FontManager.GetWobbleFont(Fonts.LatoBlack),
@@ -83,7 +83,7 @@ namespace Quaver.Shared.Screens.Main.UI.Nagivation
             Parent = this,
             Alignment = Alignment.MidLeft,
             X = Icon.X + Icon.Width + 14,
-            Tint = SkinManager.Skin?.MainMenu?.NavigationButtonTextColor ?? Color.White
+            Tint = SkinManager.Skin.MainMenu.NavigationButtonTextColor
         };
 
         public void Select(bool instantWidth = false)
