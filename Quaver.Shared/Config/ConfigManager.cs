@@ -243,17 +243,17 @@ namespace Quaver.Shared.Config
         ///     Dictates whether or not the song audio is pitched while using the ManiaModSpeed gameplayModifier.
         /// </summary>
         internal static Bindable<bool> Pitched { get; private set; }
-        
+
         /// <summary>
         ///     Key to toggle the pitch of the audio
         /// </summary>
-        
+
         internal static Bindable<Keys> KeyTogglePitch { get; private set; }
-        
+
         /// <summary>
         ///     Key to remove all mods
         /// </summary>
-        
+
         internal static Bindable<Keys> KeyRemoveAllMods { get; private set; }
 
         /// <summary>
@@ -307,6 +307,11 @@ namespace Quaver.Shared.Config
         internal static Bindable<OrderMapsetsBy> SelectOrderMapsetsBy { get; private set; }
 
         /// <summary>
+        ///     The direction to sort the mapsets in song select
+        /// </summary>
+        internal static Bindable<SortDirection> SelectSortDirection { get; private set; }
+
+        /// <summary>
         ///     Dictates how to group mapsets in song select
         /// </summary>
         internal static Bindable<GroupMapsetsBy> SelectGroupMapsetsBy { get; private set; }
@@ -315,6 +320,16 @@ namespace Quaver.Shared.Config
         ///     Dictates how to filter song select mpas
         /// </summary>
         internal static Bindable<GameMode> SelectFilterGameModeBy { get; private set; }
+
+        /// <summary>
+        ///     Dictates how to filter song select maps by status
+        /// </summary>
+        internal static Bindable<RankedStatusFilter> SelectFilterStatusBy { get; private set; }
+
+        /// <summary>
+        ///     If true, song select emits verbose debug logs.
+        /// </summary>
+        internal static Bindable<bool> EnableVerboseSongSelectLogs { get; private set; }
 
         /// <summary>
         ///     The currently selected game mode.
@@ -345,6 +360,11 @@ namespace Quaver.Shared.Config
         ///     If true, the audio visualizer in the menus will be displayed.
         /// </summary>
         internal static Bindable<bool> DisplayMenuAudioVisualizer { get; private set; }
+
+        /// <summary>
+        ///     If true, the background particle animation will be displayed.
+        /// </summary>
+        internal static Bindable<bool> DisplayBackgroundParticles { get; private set; }
 
         /// <summary>
         ///     If true, hitsounds in gameplay will be played.
@@ -739,7 +759,7 @@ namespace Quaver.Shared.Config
 
         /// <summary>
         /// </summary>
-        
+
         //this was removed somewhat recently, keeping as a comment to keep the door open for reimplementation in the future
         //internal static Bindable<bool> EnableRealtimeOnlineScoreboard { get; private set; }
 
@@ -875,7 +895,7 @@ namespace Quaver.Shared.Config
         /// </summary>
         internal static Bindable<Keys> KeyIncreaseMapOffset { get; private set; }
         internal static Bindable<Keys> KeyDecreaseMapOffset { get; private set; }
-        
+
         internal static Bindable<Keys> KeyResetMapOffset { get; private set; }
 
         /// <summary>
@@ -1072,7 +1092,9 @@ namespace Quaver.Shared.Config
             DisplayRankedAccuracy = ReadValue(@"DisplayRankedAccuracy", false, data);
             LeaderboardRankedAccuracy = ReadValue(@"LeaderboardRankedAccuracy", false, data);
             SelectOrderMapsetsBy = ReadValue(@"SelectOrderMapsetsBy", OrderMapsetsBy.Artist, data);
-            LeaderboardSection = ReadValue(@"LeaderboardSection", LeaderboardType.Local, data);
+            SelectSortDirection = ReadValue(@"SelectSortDirection", SortDirection.Descending, data);
+            EnableVerboseSongSelectLogs = ReadValue(@"EnableVerboseSongSelectLogs", false, data);
+            LeaderboardSection = ReadValue(@"LeaderboardSection", LeaderboardType.Global, data);
             OsuDbPath = ReadSpecialConfigType(SpecialConfigType.Path, @"OsuDbPath", "", data);
             EtternaDbPath = ReadSpecialConfigType(SpecialConfigType.Path, @"EtternaDbPath", "", data);
             AutoLoadOsuBeatmaps = ReadValue(@"AutoLoadOsuBeatmaps", false, data);
@@ -1082,6 +1104,7 @@ namespace Quaver.Shared.Config
             DisplayTimingLines = ReadValue(@"DisplayTimingLines", true, data);
             DisplayHitBubbles = ReadValue(@"DisplayHitBubbles", true, data);
             DisplayMenuAudioVisualizer = ReadValue(@"DisplayMenuAudioVisualizer", true, data);
+            DisplayBackgroundParticles = ReadValue(@"DisplayBackgroundParticles", true, data);
             EnableHitsounds = ReadValue(@"EnableHitsounds", true, data);
             EnableLongNoteReleaseHitsounds = ReadValue(@"EnableLongNoteReleaseHitsounds", false, data);
             EnableKeysounds = ReadValue(@"EnableKeysounds", true, data);
@@ -1152,6 +1175,7 @@ namespace Quaver.Shared.Config
             EnableBattleRoyaleBackgroundFlashing = ReadValue(@"EnableBattleRoyaleBackgroundFlashing", true, data);
             EnableBattleRoyaleAlerts = ReadValue(@"EnableBattleRoyaleAlerts", true, data);
             SelectFilterGameModeBy = ReadValue(@"SelectFilterGameModeBy", (GameMode)0, data);
+            SelectFilterStatusBy = ReadValue(@"SelectFilterStatusBy", RankedStatusFilter.All, data);
             DisplayUnbeatableScoresDuringGameplay = ReadValue(@"DisplayUnbeatableScoresDuringGameplay", true, data);
             ShowSpectators = ReadValue(@"ShowSpectators", true, data);
             JudgementWindows = ReadValue("JudgementWindows", "", data);

@@ -572,6 +572,9 @@ namespace Quaver.Shared.Database.Maps
         /// <exception cref="NotImplementedException"></exception>
         public static void FindOsuStableInstallation()
         {
+            if (!System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows))
+                return;
+
             try
             {
                 using (var key = Registry.ClassesRoot.OpenSubKey("osustable.Uri.osu"))
@@ -599,6 +602,9 @@ namespace Quaver.Shared.Database.Maps
         /// </summary>
         public static void FindEtternaInstallation()
         {
+            if (!System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows))
+                return;
+
             try
             {
                 using (var key = Registry.LocalMachine.OpenSubKey("SOFTWARE")?.OpenSubKey("Wow6432Node"))

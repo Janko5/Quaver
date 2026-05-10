@@ -3,116 +3,46 @@ using System.Collections.Generic;
 using System.Linq;
 using Microsoft.Xna.Framework;
 using Quaver.Shared.Config;
-using Wobble.Input;
 using Quaver.Shared.Database.Maps;
+using Quaver.Shared.Assets;
 using Quaver.Shared.Database.Playlists;
 using Quaver.Shared.Graphics.Form.Dropdowns;
 using Quaver.Shared.Graphics.Form.Dropdowns.RightClick;
-using Quaver.Shared.Assets;
 using Quaver.Shared.Graphics.Notifications;
 using Quaver.Shared.Helpers;
 using Quaver.Shared.Scheduling;
-using Quaver.Shared.Screens.Selection.UI.Mapsets;
+using Quaver.Shared.Screens.Selection.UI.Maps;
 using Quaver.Shared.Screens.Selection.UI.Playlists.Dialogs.Create;
 using Quaver.Shared.Screens.Selection.UI.Playlists.Management.Maps;
 using Wobble;
+using Wobble.Managers;
 using Wobble.Graphics;
+using Wobble.Graphics.Animations;
 using Wobble.Graphics.Sprites;
 using Wobble.Graphics.UI.Dialogs;
-using Wobble.Managers;
+using Wobble.Input;
 using Wobble.Logging;
+using Wobble.Scheduling;
 
-namespace Quaver.Shared.Screens.Selection.UI.Maps
+namespace Quaver.Shared.Screens.Selection.UI.Mapsets
 {
-    public class MapRightClickOptions : RightClickOptions
+    public class DifficultyRightClickOptions : RightClickOptions
     {
-        /// <summary>
-        /// </summary>
-        private DrawableMap DrawableMap { get; }
-
-        /// <summary>
-        ///     If <see cref="MapsetHelper.IsSingleDifficultySorted()"/> is true,
-        ///     we'll need the DrawableMapset and use it as if it were a map.
-        /// </summary>
-        private DrawableMapset DrawableMapset { get; }
-
-        /// <summary>
-        ///     <see cref="DrawableMapset"/>
-        /// </summary>
-        private Mapset Mapset { get; }
-
-        /// <summary>
-        /// </summary>
         private Map Map { get; }
 
-        /// <summary>
-        /// </summary>
-        private static ScalableVector2 OptionsSize { get; } = new ScalableVector2(215, 40);
-
-        /// <summary>
-        /// </summary>
-        private const int DefaultFontSize = 22;
-
         private const string Play = "Play";
-
         private const string Edit = "Edit";
-
-        private const string ViewOnlineListing = "Online Listing";
-
         private const string AddToPlaylist = "Add To Playlist";
-
-        private const string Delete = "Delete Map";
-
-        private const string Export = "Export Mapset";
-
-        private const string OpenMapsetFolder = "Open Folder";
-
+        private const string DeleteMap = "Delete Map";
         private const string DeleteLocalScores = "Delete Local Scores";
+        private const string OpenFolder = "Open Folder";
+        private const string OnlineListing = "Online Listing";
 
-        /// <summary>
-        /// </summary>
-        public MapRightClickOptions(DrawableMap drawableMap) : base(GetOptions(), OptionsSize, DefaultFontSize)
+        public DifficultyRightClickOptions(Map map, Drawable anchor) : base(GetOptions(), new ScalableVector2(215, 40), 22)
         {
-            DrawableMap = drawableMap;
-            Map = DrawableMap.Item;
+            Map = map;
+            Anchor = anchor;
 
-            SubscribeToItemSelected();
-        }
-
-        /// <summary>
-        /// </summary>
-        /// <param name="drawableMapset"></param>
-        public MapRightClickOptions(DrawableMapset drawableMapset) : base(GetOptions(), OptionsSize, DefaultFontSize)
-        {
-            DrawableMapset = drawableMapset;
-            Map = DrawableMapset.Item.Maps.First();
-            Mapset = DrawableMapset.Item;
-            SubscribeToItemSelected();
-        }
-
-        /// <summary>
-        ///     Selects a map and sets the appropriate index
-        /// </summary>
-        /// <param name="m"></param>
-        private void SelectMap(Map m)
-        {
-            MapManager.Selected.Value = m;
-
-            var container = (MapScrollContainer)DrawableMap.Container;
-
-            var index = container.AvailableItems.IndexOf(Map);
-
-            if (index == -1)
-                return;
-
-            container.SelectedIndex.Value = index;
-            container.ScrollToSelected();
-        }
-
-        /// <summary>
-        /// </summary>
-        private void SubscribeToItemSelected()
-        {
             ItemSelected += (sender, args) =>
             {
                 var game = (QuaverGame)GameBase.Game;
@@ -121,45 +51,22 @@ namespace Quaver.Shared.Screens.Selection.UI.Maps
                 switch (args.Text)
                 {
                     case Play:
-                        if (DrawableMapset != null)
-                            MapsetRightClickOptions.SelectMap(DrawableMapset, Map, Mapset);
-                        else
-                            SelectMap(Map);
-
                         selectScreen?.ExitToGameplay();
                         break;
                     case Edit:
-                        if (DrawableMapset != null)
-                            MapsetRightClickOptions.SelectMap(DrawableMapset, Map, Mapset);
-                        else
-                            SelectMap(Map);
-
                         selectScreen?.ExitToEditor();
                         break;
-                    case ViewOnlineListing:
-                        MapManager.ViewOnlineListing(Map);
-                        break;
-                    case Delete:
-                        if (selectScreen == null)
-                            return;
-
+                    case DeleteMap:
                         DialogManager.Show(new DeleteMapDialog(Map, Map.Mapset.Maps.IndexOf(Map)));
                         break;
                     case DeleteLocalScores:
                         DialogManager.Show(new DeleteLocalScoresDialog(Map));
                         break;
-                    case Export:
-                        ThreadScheduler.Run(() =>
-                        {
-                            NotificationManager.Show(NotificationLevel.Info, "Exporting mapset to zip archive. Please wait!");
-
-                            Map.Mapset.ExportToZip();
-
-                            NotificationManager.Show(NotificationLevel.Success, $"Successfully exported {Map.Artist} - {Map.Title}!");
-                        });
-                        break;
-                    case OpenMapsetFolder:
+                    case OpenFolder:
                         Map.OpenFolder();
+                        break;
+                    case OnlineListing:
+                        MapManager.ViewOnlineListing(Map);
                         break;
                 }
             };
@@ -209,14 +116,15 @@ namespace Quaver.Shared.Screens.Selection.UI.Maps
 
             var playlists = PlaylistManager.Playlists.FindAll(x => x.PlaylistGame == MapGame.Quaver);
 
-
             var options = new Dictionary<string, Color>();
             foreach (var pl in playlists)
                 options.Add(pl.Name, Color.White);
 
             options.Add("Create New Playlist...", ColorHelper.HexToColor("#6888ff"));
 
-            _playlistSubMenu = new RightClickOptions(options, new ScalableVector2(215, 40), 22)
+            // MaxWidth: 165 (to clip 10px from checkbox at X=-12, so text ends at X=-22)
+            // MaxHeight: 320 (8 items * 40px)
+            _playlistSubMenu = new RightClickOptions(options, new ScalableVector2(215, 40), 22, 165, 320)
             {
                 Parent = this,
                 X = Width,
@@ -226,11 +134,14 @@ namespace Quaver.Shared.Screens.Selection.UI.Maps
                 UseCheckboxIcons = true
             };
 
-            // Configure scrollbar appearance
+            // Configure scrollbar appearance (like Options panel dropdowns)
             _playlistSubMenu.ItemContainer.Scrollbar.Alignment = Alignment.BotLeft;
             _playlistSubMenu.ItemContainer.Scrollbar.X = 0;
             _playlistSubMenu.ItemContainer.Scrollbar.Tint = Color.White;
             _playlistSubMenu.ItemContainer.Scrollbar.Width = 2;
+            _playlistSubMenu.ItemContainer.EasingType = Easing.OutQuint;
+            _playlistSubMenu.ItemContainer.TimeToCompleteScroll = 1200;
+            _playlistSubMenu.ItemContainer.ScrollSpeed = 220;
 
             // Configure visuals for playlist items
             for (var i = 0; i < playlists.Count; i++)
@@ -242,9 +153,29 @@ namespace Quaver.Shared.Screens.Selection.UI.Maps
                 var mapInPlaylist = pl.Maps.Any(x => x.Md5Checksum == Map.Md5Checksum);
                 subItem.SetSelected(mapInPlaylist);
 
-                // Customize CheckIcon
+                // Customize CheckIcon position
                 subItem.CheckIcon.X = -12;
+
+                // Hide original text and use MarqueeSpriteText for proper clipping
+                var fullName = pl.Name;
+                subItem.Text.Visible = false;
+
+                var marquee = new MarqueeSpriteText(
+                    subItem.Dropdown.SelectedText.Font,
+                    fullName,
+                    subItem.Dropdown.FontSize,
+                    165) // MaxWidth for clipping
+                {
+                    Parent = subItem,
+                    Alignment = Alignment.MidLeft,
+                    X = Dropdown.PaddingX
+                };
+
+                // Activate marquee on hover
+                subItem.Hovered += (sender, args) => marquee.IsActive = true;
+                subItem.LeftHover += (sender, args) => marquee.IsActive = false;
             }
+
 
             // Configure Create Playlist item
             var createItem = _playlistSubMenu.Items.Last();
@@ -297,6 +228,9 @@ namespace Quaver.Shared.Screens.Selection.UI.Maps
             };
         }
 
+        /// <summary>
+        ///     Update handler to manage playlist submenu scrollbar and input
+        /// </summary>
         public override void Update(GameTime gameTime)
         {
             base.Update(gameTime);
@@ -306,8 +240,22 @@ namespace Quaver.Shared.Screens.Selection.UI.Maps
                 // Show scrollbar when submenu is open
                 _playlistSubMenu.ItemContainer.Scrollbar.Visible = true;
                 _playlistSubMenu.ItemContainer.Scrollbar.Alpha = 1;
+
+                // Enable input only when mouse is over the submenu to prevent background scrolling
+                var mouseInSubmenu = GraphicsHelper.RectangleContains(
+                    _playlistSubMenu.ItemContainer.ScreenRectangle,
+                    MouseManager.CurrentState.Position);
+                _playlistSubMenu.ItemContainer.InputEnabled = mouseInSubmenu;
+
+                // Set static flag to block background container scrolling
+                IsSubmenuScrollActive = mouseInSubmenu;
+            }
+            else
+            {
+                IsSubmenuScrollActive = false;
             }
         }
+
 
         private void ClosePlaylistSubMenu()
         {
@@ -319,20 +267,15 @@ namespace Quaver.Shared.Screens.Selection.UI.Maps
             }
         }
 
-        /// <summary>
-        ///     Returns the options to select
-        /// </summary>
-        /// <returns></returns>
         private static Dictionary<string, Color> GetOptions() => new Dictionary<string, Color>()
         {
             {Play, Color.White},
             {Edit, ColorHelper.HexToColor("#F2994A")},
             {AddToPlaylist, ColorHelper.HexToColor("#27B06E")},
-            {Delete, ColorHelper.HexToColor($"#FF6868")},
+            {DeleteMap, ColorHelper.HexToColor($"#FF6868")},
             {DeleteLocalScores, ColorHelper.HexToColor($"#FF6868")},
-            {Export, ColorHelper.HexToColor("#0787E3")},
-            {OpenMapsetFolder, ColorHelper.HexToColor("#9B51E0")},
-            {ViewOnlineListing, ColorHelper.HexToColor("#FFE76B")},
+            {OpenFolder, ColorHelper.HexToColor("#9B51E0")},
+            {OnlineListing, ColorHelper.HexToColor("#FFE76B")},
         };
 
         protected override void OnClickedOutside(object sender, EventArgs e)

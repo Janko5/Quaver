@@ -145,7 +145,7 @@ namespace Quaver.Shared.Graphics.Containers
         /// </summary>
         /// <param name="middleObjectIndex"></param>
         /// <returns></returns>
-        protected int DesiredPoolStartingIndex(int middleObjectIndex)
+        protected virtual int DesiredPoolStartingIndex(int middleObjectIndex)
         {
             if ((middleObjectIndex + 1) < (float)PoolSize / 2)
                 return 0;
@@ -163,9 +163,11 @@ namespace Quaver.Shared.Graphics.Containers
         /// <summary>
         ///     Handles the shifting of the object pool when the user scrolls up or down.
         /// </summary>
-        protected void HandlePoolShifting()
+        protected virtual void HandlePoolShifting()
         {
-            if (AvailableItems == null || Pool.Count != PoolSize)
+            // Only shift if the pool is fully populated for the available items.
+            // If items count < PoolSize, the pool should be equal to the items count.
+            if (AvailableItems == null || Pool.Count != Math.Min(PoolSize, AvailableItems.Count))
                 return;
 
             // Compute the index of the object currently in the middle of the container.
@@ -174,7 +176,7 @@ namespace Quaver.Shared.Graphics.Containers
             // Compute the corresponding PoolStartingIndex.
             var desiredPoolStartingIndex = DesiredPoolStartingIndex(middleObjectIndex);
 
-            // If our PoolStartingIndex is already correct, then there's nothing to do.
+            // If our PoolStartingIndex is already corrected, then there's nothing to do.
             if (PoolStartingIndex == desiredPoolStartingIndex)
                 return;
 
@@ -355,7 +357,12 @@ namespace Quaver.Shared.Graphics.Containers
         /// </summary>
         public void DestroyPool()
         {
-            Pool.ForEach(x => x.Destroy());
+            if (Pool == null)
+                return;
+
+            for (var i = Pool.Count - 1; i >= 0; i--)
+                Pool[i].Destroy();
+
             Pool.Clear();
         }
     }

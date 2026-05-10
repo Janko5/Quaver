@@ -65,7 +65,6 @@ using Quaver.Shared.Screens.Tests.Border;
 using Quaver.Shared.Screens.Tests.Chat;
 using Quaver.Shared.Screens.Tests.CheckboxContainers;
 using Quaver.Shared.Screens.Tests.CreatePlaylists;
-using Quaver.Shared.Screens.Tests.DifficultyBars;
 using Quaver.Shared.Screens.Tests.DifficultyGraph;
 using Quaver.Shared.Screens.Tests.DrawableLeaderboardScores;
 using Quaver.Shared.Screens.Tests.DrawableMaps;
@@ -227,7 +226,6 @@ namespace Quaver.Shared
             {"SelectJukebox", typeof(TestSelectJukeboxScreen)},
             {"DrawableMapset", typeof(TestMapsetScreen)},
             {"DrawableMapset (Multiple)", typeof(TestMapsetsMultipleScreen)},
-            {"DifficultyBarDisplay", typeof(TestScreenDifficultyBar)},
             {"MapsetScrollContainer", typeof(TestScreenMapsetScrollContainer)},
             {"DrawableMap", typeof(TestDrawableMapScreen)},
             {"MapScrollContainer", typeof(TestScreenMapScrollContainer)},

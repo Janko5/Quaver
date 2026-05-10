@@ -81,14 +81,26 @@ namespace Quaver.Shared.Screens.Tests.MapScrollContainers
         {
             if (KeyboardManager.IsUniqueKeyPress(Keys.Escape))
             {
-                if (ActiveScrollContainer.Value == SelectScrollContainerType.Maps)
-                    ActiveScrollContainer.Value = SelectScrollContainerType.Mapsets;
+                // With inline expand, Escape collapses the current expanded mapset
+                if (MapManager.Selected.Value?.Mapset != null)
+                {
+                    var mapset = MapsetContainer.AvailableItems
+                        .FirstOrDefault(m => m.Maps.Contains(MapManager.Selected.Value));
+                    if (mapset != null && MapsetContainer.IsMapsetExpanded(mapset))
+                        MapsetContainer.CollapseMapset(mapset);
+                }
             }
 
             if (KeyboardManager.IsUniqueKeyPress(Keys.Enter))
             {
-                if (ActiveScrollContainer.Value == SelectScrollContainerType.Mapsets)
-                    ActiveScrollContainer.Value = SelectScrollContainerType.Maps;
+                // With inline expand, Enter toggles expansion of current mapset
+                if (MapManager.Selected.Value?.Mapset != null)
+                {
+                    var mapset = MapsetContainer.AvailableItems
+                        .FirstOrDefault(m => m.Maps.Contains(MapManager.Selected.Value));
+                    if (mapset != null)
+                        MapsetContainer.ToggleMapsetExpanded(mapset);
+                }
             }
 
             base.Update(gameTime);

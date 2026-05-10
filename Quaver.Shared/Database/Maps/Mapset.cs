@@ -12,6 +12,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using Quaver.API.Enums;
 using Quaver.API.Maps.Parsers;
 using Quaver.API.Maps.Parsers.Stepmania;
 using Quaver.Shared.Config;
@@ -40,6 +41,11 @@ namespace Quaver.Shared.Database.Maps
         public List<Map> Maps { get; set; }
 
         /// <summary>
+        ///     The list of all game modes present in this mapset (unfiltered).
+        /// </summary>
+        public List<GameMode> AllModesInSet { get; set; } = new List<GameMode>();
+
+        /// <summary>
         ///     The last selected/preferred map in this set
         /// </summary>
         public Map PreferredMap { get; set; }
@@ -48,6 +54,11 @@ namespace Quaver.Shared.Database.Maps
         public string Title => Maps.First().Title;
         public string Creator => Maps.First().Creator;
         public string Background => MapManager.GetBackgroundPath(Maps.First());
+
+        /// <summary>
+        ///     If there is more than 1 keymode in the mapset.
+        /// </summary>
+        public bool HasMultipleKeymodes => Maps.Select(x => (x.Mode, x.HasScratchKey)).Distinct().Count() > 1;
 
         /// <summary>
         ///     Exports the entire mapset to a zip (.qp) file.

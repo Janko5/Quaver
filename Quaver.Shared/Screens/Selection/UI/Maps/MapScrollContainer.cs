@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.Xna.Framework;
@@ -7,6 +8,10 @@ using Quaver.Shared.Graphics.Containers;
 using Quaver.Shared.Screens.Selection.UI.Mapsets;
 using Wobble.Bindables;
 using Wobble.Input;
+using Wobble;
+using Quaver.Shared.Skinning;
+using Wobble.Logging;
+using Wobble.Managers;
 
 namespace Quaver.Shared.Screens.Selection.UI.Maps
 {
@@ -32,6 +37,11 @@ namespace Quaver.Shared.Screens.Selection.UI.Maps
         /// </summary>
         private Mapset CurrentMapset => AvailableMapsets?.Value?.ElementAtOrDefault(MapsetContainer.SelectedIndex.Value);
 
+        /// <summary>
+        ///     Cached height of a map slot.
+        /// </summary>
+        private float? _cachedSlotHeight;
+
         /// <inheritdoc />
         /// <summary>
         /// </summary>
@@ -48,6 +58,8 @@ namespace Quaver.Shared.Screens.Selection.UI.Maps
             MapManager.Selected.ValueChanged += OnMapChanged;
             ActiveScrollContainer = activeContainer;
 
+            SkinManager.SkinLoaded += OnSkinLoaded;
+
             if (CurrentMapset != null)
                 Initialize(CurrentMapset.Maps);
         }
@@ -58,16 +70,37 @@ namespace Quaver.Shared.Screens.Selection.UI.Maps
         {
             // ReSharper disable once DelegateSubtraction
             MapManager.Selected.ValueChanged -= OnMapChanged;
+            MapsetContainer.SelectedIndex.ValueChanged -= OnSelectedMapsetChanged;
+            SkinManager.SkinLoaded -= OnSkinLoaded;
 
             base.Destroy();
         }
+
+        /// <summary>
+        ///     Invalidates the height cache when skin is loaded/changed.
+        /// </summary>
+        private void OnSkinLoaded(object sender, SkinReloadedEventArgs e) => _cachedSlotHeight = null;
 
         /// <inheritdoc />
         /// <summary>
         /// </summary>
         /// <returns></returns>
+        /// <summary>
+        ///     Calculates the height of a map slot.
+        /// </summary>
+        /// <returns></returns>
+        private float GetMapSlotHeight()
+        {
+            if (_cachedSlotHeight.HasValue)
+                return _cachedSlotHeight.Value;
+
+            // Maps currently have a fixed height of 60 for both V1 and V2
+            _cachedSlotHeight = 60;
+            return _cachedSlotHeight.Value;
+        }
+
         protected override float GetSelectedPosition()
-            => (-SelectedIndex.Value + 4) * DrawableMapset.MapsetHeight + (-SelectedIndex.Value - 3);
+            => (-SelectedIndex.Value + 4) * GetMapSlotHeight() + (-SelectedIndex.Value - 3);
 
         /// <inheritdoc />
         /// <summary>
@@ -108,6 +141,24 @@ namespace Quaver.Shared.Screens.Selection.UI.Maps
                 SelectedIndex.Value--;
                 ScrollToSelected();
             }
+        }
+
+        /// <inheritdoc />
+        /// <summary>
+        /// </summary>
+        /// <param name="gameTime"></param>
+        public override void Update(GameTime gameTime)
+        {
+            var deltaY = CurrentY - PreviousY;
+
+            // Close Right Click Options if scrolling
+            if (System.Math.Abs(deltaY) > 1)
+            {
+                var game = (QuaverGame)GameBase.Game;
+                game?.CurrentScreen?.ActiveRightClickOptions?.Close();
+            }
+
+            base.Update(gameTime);
         }
 
         /// <inheritdoc />

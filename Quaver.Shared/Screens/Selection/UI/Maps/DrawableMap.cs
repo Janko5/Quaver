@@ -13,7 +13,7 @@ namespace Quaver.Shared.Screens.Selection.UI.Maps
         /// <inheritdoc />
         /// <summary>
         /// </summary>
-        public override int HEIGHT { get; } = DrawableMapset.MapsetHeight;
+        public override int HEIGHT { get; } = 60;
 
         /// <summary>
         /// </summary>

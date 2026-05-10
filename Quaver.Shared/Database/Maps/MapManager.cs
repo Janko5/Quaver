@@ -146,10 +146,10 @@ namespace Quaver.Shared.Database.Maps
             {
                 case MapGame.Osu:
                     // Parse the map and get the background
-                    var osu = new OsuBeatmap(OsuSongsFolder + map.Directory + "/" + map.Path);
-                    return $@"{OsuSongsFolder}/{map.Directory}/{osu.Background}";
+                    var osu = new OsuBeatmap(Path.Combine(OsuSongsFolder, map.Directory ?? "", map.Path ?? ""));
+                    return Path.Combine(OsuSongsFolder, map.Directory ?? "", osu.Background ?? "").Replace("\\", "/");
                 case MapGame.Quaver:
-                    return ConfigManager.SongDirectory + "/" + map.Directory + "/" + map.BackgroundPath;
+                    return Path.Combine(ConfigManager.SongDirectory.Value, map.Directory ?? "", map.BackgroundPath ?? "").Replace("\\", "/");
                 case MapGame.Etterna:
                     return map.BackgroundPath;
                 default:
@@ -172,7 +172,7 @@ namespace Quaver.Shared.Database.Maps
                 case MapGame.Osu:
                     return "";
                 case MapGame.Quaver:
-                    return ConfigManager.SongDirectory + "/" + map.Directory + "/" + map.BannerPath;
+                    return Path.Combine(ConfigManager.SongDirectory.Value, map.Directory ?? "", map.BannerPath ?? "").Replace("\\", "/");
                 case MapGame.Etterna:
                     return map.BannerPath;
                 default:
@@ -194,7 +194,7 @@ namespace Quaver.Shared.Database.Maps
                 case MapGame.Osu:
                     return "";
                 case MapGame.Quaver:
-                    return (ConfigManager.SongDirectory + "/" + map.Directory + "/" + map.BannerPath).Replace("\\", "/");
+                    return Path.Combine(ConfigManager.SongDirectory.Value, map.Directory ?? "", map.BannerPath ?? "").Replace("\\", "/");
                 case MapGame.Etterna:
                     return map.BannerPath;
                 default:
@@ -215,9 +215,9 @@ namespace Quaver.Shared.Database.Maps
             switch (map.Game)
             {
                 case MapGame.Osu:
-                    return OsuSongsFolder + "/" + map.Directory + "/" + map.AudioPath;
+                    return Path.Combine(OsuSongsFolder, map.Directory ?? "", map.AudioPath ?? "").Replace("\\", "/");
                 case MapGame.Quaver:
-                    return ConfigManager.SongDirectory + "/" + map.Directory + "/" + map.AudioPath;
+                    return Path.Combine(ConfigManager.SongDirectory.Value, map.Directory ?? "", map.AudioPath ?? "").Replace("\\", "/");
                 case MapGame.Etterna:
                     return map.AudioPath;
                 default:
@@ -271,9 +271,9 @@ namespace Quaver.Shared.Database.Maps
             switch (map.Game)
             {
                 case MapGame.Osu:
-                    return OsuSongsFolder + "/" + map.Directory + "/" + samplePath;
+                    return Path.Combine(OsuSongsFolder, map.Directory ?? "", samplePath ?? "").Replace("\\", "/");
                 case MapGame.Quaver:
-                    return ConfigManager.SongDirectory + "/" + map.Directory + "/" + samplePath;
+                    return Path.Combine(ConfigManager.SongDirectory.Value, map.Directory ?? "", samplePath ?? "").Replace("\\", "/");
                 default:
                     return "";
             }
@@ -358,6 +358,18 @@ namespace Quaver.Shared.Database.Maps
             catch (Exception e)
             {
                 Logger.Error(e, LogType.Runtime);
+            }
+
+            // If the deleted map is the currently selected one, select another one from the same mapset
+            if (Selected.Value == map && map.Mapset.Maps.Count > 1)
+            {
+                var indexInMapset = map.Mapset.Maps.IndexOf(map);
+
+                // Try to select the previous map, otherwise next
+                var newMapIndex = indexInMapset > 0 ? indexInMapset - 1 : indexInMapset + 1;
+
+                if (newMapIndex >= 0 && newMapIndex < map.Mapset.Maps.Count)
+                    Selected.Value = map.Mapset.Maps[newMapIndex];
             }
 
             map.Mapset.Maps.Remove(map);

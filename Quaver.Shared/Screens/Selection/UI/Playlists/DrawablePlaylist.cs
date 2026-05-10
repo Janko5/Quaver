@@ -23,6 +23,11 @@ namespace Quaver.Shared.Screens.Selection.UI.Playlists
         /// </summary>
         public bool IsSelected => PlaylistManager.Selected.Value == Item;
 
+        /// <summary>
+        ///     Header panel context in the mapsets list.
+        /// </summary>
+        public MapsetScrollContainer MapsetContainer { get; }
+
         /// <inheritdoc />
         /// <summary>
         /// </summary>
@@ -44,6 +49,31 @@ namespace Quaver.Shared.Screens.Selection.UI.Playlists
             UsePreviousSpriteBatchOptions = true;
 
             UpdateContent(item, index);
+
+            PlaylistManager.Selected.ValueChanged += OnPlaylistChanged;
+            PlaylistManager.PlaylistMapsManaged += OnPLaylistMapsManaged;
+            ModManager.ModsChanged += OnModsChanged;
+        }
+
+        /// <summary>
+        ///     Creates a playlist header panel inside the mapset scroll container.
+        /// </summary>
+        public DrawablePlaylist(MapsetScrollContainer container, Playlist item) : base(null, item, 0)
+        {
+            MapsetContainer = container;
+            Size = new ScalableVector2(DrawableMapset.WIDTH, HEIGHT);
+
+            DrawableContainer = new DrawablePlaylistContainer(this)
+            {
+                Parent = this,
+                Alignment = Alignment.TopRight,
+                UsePreviousSpriteBatchOptions = true
+            };
+
+            Alpha = 0;
+            UsePreviousSpriteBatchOptions = true;
+
+            UpdateContent(item, 0);
 
             PlaylistManager.Selected.ValueChanged += OnPlaylistChanged;
             PlaylistManager.PlaylistMapsManaged += OnPLaylistMapsManaged;

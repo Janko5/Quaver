@@ -30,7 +30,7 @@ namespace Quaver.Shared.Screens.Music.UI.Controller.Search
         ///     Items that are aligned from right to left
         /// </summary>
         private List<Drawable> RightItems { get; }
-        
+
         /// <summary>
         /// </summary>
         private MusicControllerSortDropdown SortDropdown { get; set; }
@@ -118,7 +118,7 @@ namespace Quaver.Shared.Screens.Music.UI.Controller.Search
                     item.X = RightItems[i - 1].X - RightItems[i - 1].Width - spacing;
             }
         }
-        
+
         /// <summary>
         /// </summary>
         private void CreateSortDropdown()
@@ -204,7 +204,7 @@ namespace Quaver.Shared.Screens.Music.UI.Controller.Search
             lock (AvailableSongs.Value)
             {
                 Logger.Important($"Filtering mapsets by -  Query: `{CurrentSearchQuery.Value}`", LogType.Runtime, false);
-                AvailableSongs.Value = MapsetHelper.FilterMapsets(CurrentSearchQuery, true);
+                AvailableSongs.Value = MapsetHelper.FilterMapsets(CurrentSearchQuery, musicPlayer: true);
             }
         }
 

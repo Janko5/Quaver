@@ -21,22 +21,118 @@ using WilliamQiufeng.SearchParser.AST;
 using WilliamQiufeng.SearchParser.Parsing;
 using WilliamQiufeng.SearchParser.Tokenizing;
 using Wobble.Bindables;
+using Wobble.Graphics.Sprites.Text;
 
 namespace Quaver.Shared.Database.Maps
 {
     public static class MapsetHelper
     {
         /// <summary>
-        ///     A trie containing all possible keywords (keys like lns, mode, and enum values like unranked, quaver)
+        ///     A trie that holds all keywords found in song search used for autocomplete.
         /// </summary>
         private static Trie _searchKeywordTrie = new();
 
         /// <summary>
-        ///     Stores which <see cref="SearchFilterOption"/> an enum value belongs to.
-        ///     For example, pair (<see cref="MapGame.Quaver"/>, <see cref="SearchFilterOption.Game"/>) exists in the
-        ///     dictionary.
+        ///     Dictionary that holds all search filter keys and their corresponding enum value.
         /// </summary>
-        private static readonly Dictionary<object, SearchFilterOption> SearchEnumKeyDictionary = new();
+        private static readonly Dictionary<object, SearchFilterOption> _searchEnumKeyDictionary = new();
+
+        /// <summary>
+        ///     Cache for text measurements to avoid redundant calculations.
+        /// </summary>
+        private static readonly Dictionary<string, float> _measurementCache = new();
+
+        /// <summary>
+        ///     Queue to maintain the order of items in the measurement cache for LRU eviction.
+        /// </summary>
+        private static readonly Queue<string> _measurementCacheQueue = new();
+
+        /// <summary>
+        ///     Lock object to ensure thread-safe access to the measurement cache.
+        /// </summary>
+        private static readonly object _measurementCacheLock = new();
+
+        /// <summary>
+        ///     The maximum number of entries allowed in the measurement cache.
+        /// </summary>
+        private const int MaxMeasurementCacheEntries = 5000;
+
+        /// <summary>
+        ///     Measures the width of a string using a shared cache.
+        /// </summary>
+        /// <param name="font"></param>
+        /// <param name="text"></param>
+        /// <param name="fontName"></param>
+        /// <param name="fontSize"></param>
+        /// <returns></returns>
+        public static float MeasureTextShared(WobbleFontStore font, string text, string fontName, int fontSize)
+        {
+            var cacheKey = $"{text}_{fontName}_{fontSize}";
+
+            lock (_measurementCacheLock)
+            {
+                if (_measurementCache.TryGetValue(cacheKey, out var width))
+                    return width;
+
+                var measuredWidth = font.Store.MeasureString(text).X;
+
+                if (_measurementCache.Count >= MaxMeasurementCacheEntries)
+                {
+                    if (_measurementCacheQueue.TryDequeue(out var oldKey))
+                        _measurementCache.Remove(oldKey);
+                }
+
+                _measurementCache[cacheKey] = measuredWidth;
+                _measurementCacheQueue.Enqueue(cacheKey);
+
+                return measuredWidth;
+            }
+        }
+
+        public const float V1MapsetHeight = 97;
+        public const float V2MapsetHeight = 100;
+        public const float V2MapsetSlotHeight = 110;
+
+        /// <summary>
+        ///     Calculates the total height of a mapset tile, including its expanded difficulties if applicable.
+        ///     This is the "Single Source of Truth" for layout height.
+        /// </summary>
+        /// <param name="mapset"></param>
+        /// <param name="isExpanded"></param>
+        /// <param name="version"></param>
+        /// <returns></returns>
+        public static float GetMapsetHeight(Mapset? mapset, bool isExpanded, float version)
+        {
+            var baseHeight = version >= 2f ? V2MapsetHeight : V1MapsetHeight;
+
+            return !isExpanded || mapset?.Maps is not { Count: > 0 }
+                ? baseHeight
+                : baseHeight + GetDifficultyListHeight(mapset.Maps.Count, version);
+        }
+
+        /// <summary>
+        ///     Calculates only the height of the expanded difficulty list area.
+        /// </summary>
+        /// <param name="mapsCount"></param>
+        /// <param name="version"></param>
+        /// <returns></returns>
+        public static float GetDifficultyListHeight(int mapsCount, float version)
+        {
+            if (mapsCount == 0)
+                return 0;
+
+            const int panelHeight = 60;
+            const int panelSpacing = 11;
+            var topSpacing = version >= 2f ? V2MapsetSlotHeight - V2MapsetHeight : 0f;
+
+            // We use (mapsCount - 1) for spacing as the base.
+            // For V2, systemic slot gap is 10px, so we add 0 extra.
+            // For V1, systemic slot gap is 0px, so we add 10px extra to prevent gluing.
+            var spacingCount = Math.Max(0, mapsCount - 1);
+            var bottomPadding = version >= 2f ? 0f : 10f;
+            
+            return topSpacing + (mapsCount * panelHeight) + (spacingCount * panelSpacing) + bottomPadding;
+        }
 
         /// <summary>
         ///     Gets the Md5 Checksum of a file, more specifically a .qua file.
@@ -45,20 +141,16 @@ namespace Quaver.Shared.Database.Maps
         /// <returns></returns>
         internal static string GetMd5Checksum(string path)
         {
-            using (var md5 = MD5.Create())
-            {
-                using (var stream = File.OpenRead(path))
-                {
-                    return BitConverter.ToString(md5.ComputeHash(stream)).Replace("-", string.Empty).ToLower();
-                }
-            }
+            using var md5 = MD5.Create();
+            using var stream = File.OpenRead(path);
+            return BitConverter.ToString(md5.ComputeHash(stream)).Replace("-", string.Empty).ToLower();
         }
 
         /// <summary>
         ///     Filters mapsets to use in song select
         /// </summary>
         /// <returns></returns>
-        internal static List<Mapset> FilterMapsets(Bindable<string> searchQuery, bool musicPlayer = false)
+        internal static List<Mapset> FilterMapsets(Bindable<string> searchQuery, float minDiff = 0, float maxDiff = 99.99f, bool musicPlayer = false)
         {
             var mapsets = MapManager.Mapsets;
 
@@ -67,19 +159,19 @@ namespace Quaver.Shared.Database.Maps
             {
                 mapsets = PlaylistManager.Selected.Value == null
                     ? new List<Mapset>()
-                    : SeparateMapsIntoOwnMapsets(PlaylistManager.Selected.Value.Maps);
+                    : ConvertMapsToMapsets(PlaylistManager.Selected.Value.Maps);
             }
 
-            var searched = SearchMapsets(mapsets, searchQuery.Value);
+            var modeToFilter = (int)(musicPlayer ? (GameMode)0 : ConfigManager.SelectFilterGameModeBy?.Value ?? (GameMode)0);
+            var statusFilter = ConfigManager.SelectFilterStatusBy?.Value ?? RankedStatusFilter.All;
 
-            if (ConfigManager.SelectGroupMapsetsBy.Value == GroupMapsetsBy.Playlists)
-                searched = SeparateMapsIntoOwnMapsets(searched);
+            // V2: Single pass filtering integrated into SearchMapsets
+            var searched = SearchMapsets(mapsets, searchQuery.Value, minDiff, maxDiff, statusFilter, modeToFilter);
 
             var separateMapsets = ConfigManager.SelectGroupMapsetsBy.Value != GroupMapsetsBy.Playlists;
-            var gameModes = musicPlayer ? new Bindable<GameMode>(0) { Value = 0 } : null;
             var orderMapsetsBy = musicPlayer ? ConfigManager.MusicPlayerOrderMapsBy : null;
 
-            return OrderMapsetsByConfigValue(searched, separateMapsets, gameModes, orderMapsetsBy);
+            return OrderMapsetsByConfigValue(searched, separateMapsets, orderMapsetsBy);
         }
 
         /// <summary>
@@ -88,19 +180,11 @@ namespace Quaver.Shared.Database.Maps
         /// <returns></returns>
         internal static bool IsSingleDifficultySorted()
         {
-            if (ConfigManager.SelectGroupMapsetsBy.Value == GroupMapsetsBy.Playlists)
-                return true;
-
-            switch (ConfigManager.SelectOrderMapsetsBy.Value)
+            return ConfigManager.SelectOrderMapsetsBy.Value switch
             {
-                case OrderMapsetsBy.Difficulty:
-                case OrderMapsetsBy.OnlineGrade:
-                case OrderMapsetsBy.LongNotePercentage:
-                case OrderMapsetsBy.NotesPerSecond:
-                    return true;
-                default:
-                    return false;
-            }
+                OrderMapsetsBy.Difficulty or OrderMapsetsBy.OnlineGrade => true,
+                _ => false
+            };
         }
 
         /// <summary>
@@ -110,24 +194,30 @@ namespace Quaver.Shared.Database.Maps
         /// <returns></returns>
         internal static List<Mapset> ConvertMapsToMapsets(IEnumerable<Map> maps)
         {
-            // Group maps by directory.
-            var groupedMaps = maps
-                .GroupBy(u => u.Directory)
-                .Select(grp => grp.ToList())
-                .ToList();
-
-            // Populate the mapsets with the grouped maps.
             var mapsets = new List<Mapset>();
+            var groupedByDirectory = new Dictionary<string, List<Map>>();
 
-            foreach (var mapset in groupedMaps)
+            foreach (var map in maps)
+            {
+                if (!groupedByDirectory.TryGetValue(map.Directory, out var list))
+                {
+                    list = new List<Map>();
+                    groupedByDirectory[map.Directory] = list;
+                }
+                list.Add(map);
+            }
+
+            foreach (var group in groupedByDirectory)
             {
                 var set = new Mapset
                 {
-                    Directory = mapset.First().Directory,
-                    Maps = mapset
+                    Directory = group.Key,
+                    Maps = group.Value
                 };
 
-                set.Maps.ForEach(x => x.Mapset = set);
+                foreach (var map in set.Maps)
+                    map.Mapset = set;
+
                 mapsets.Add(set);
             }
 
@@ -142,7 +232,8 @@ namespace Quaver.Shared.Database.Maps
         internal static List<Mapset> OrderMapsetsByArtist(IEnumerable<Mapset> mapsets)
         {
             // ReSharper disable once ArrangeMethodOrOperatorBody
-            return mapsets.OrderBy(x => x.Maps.First().Artist).ThenBy(x => x.Maps.First().Title).ToList();
+            return mapsets.OrderBy(x => x.Maps.First().Artist, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(x => x.Maps.First().Title, StringComparer.OrdinalIgnoreCase).ToList();
         }
 
         /// <summary>
@@ -150,7 +241,8 @@ namespace Quaver.Shared.Database.Maps
         /// </summary>
         /// <param name="mapsets"></param>
         /// <returns></returns>
-        internal static List<Mapset> OrderMapsetsByTitle(IEnumerable<Mapset> mapsets) => mapsets.OrderBy(x => x.Maps.First().Title).ToList();
+        internal static List<Mapset> OrderMapsetsByTitle(IEnumerable<Mapset> mapsets)
+            => mapsets.OrderBy(x => x.Maps.First().Title, StringComparer.OrdinalIgnoreCase).ToList();
 
         /// <summary>
         ///     Orders mapsets by their genre
@@ -159,7 +251,9 @@ namespace Quaver.Shared.Database.Maps
         /// <returns></returns>
         private static List<Mapset> OrderMapsetsByGenre(IEnumerable<Mapset> mapsets)
         {
-            return mapsets.OrderBy(x => x.Maps.First().Genre).ThenBy(x => x.Maps.First().Artist).ThenBy(x => x.Maps.First().Title).ToList();
+            return mapsets.OrderBy(x => x.Maps.First().Genre, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(x => x.Maps.First().Artist, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(x => x.Maps.First().Title, StringComparer.OrdinalIgnoreCase).ToList();
         }
 
         /// <summary>
@@ -169,7 +263,9 @@ namespace Quaver.Shared.Database.Maps
         /// <returns></returns>
         private static List<Mapset> OrderMapsetsByLength(IEnumerable<Mapset> mapsets)
         {
-            return mapsets.OrderBy(x => x.Maps.First().SongLength).ThenBy(x => x.Maps.First().Artist).ThenBy(x => x.Maps.First().Title).ToList();
+            return mapsets.OrderBy(x => x.Maps.First().SongLength)
+                .ThenBy(x => x.Maps.First().Artist, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(x => x.Maps.First().Title, StringComparer.OrdinalIgnoreCase).ToList();
         }
 
         /// <summary>
@@ -179,14 +275,24 @@ namespace Quaver.Shared.Database.Maps
         /// <returns></returns>
         private static List<Mapset> OrderMapsetsByNotesPerSecond(List<Mapset> mapsets, bool separateMapsets)
         {
-            var newMapsets = new List<Mapset>();
+            var newMapsets = separateMapsets
+                ? SeparateMapsByProperty(mapsets, m => Math.Round(m.NotesPerSecond, 2))
+                : mapsets;
 
-            if (separateMapsets)
-                newMapsets = SeparateMapsIntoOwnMapsets(mapsets);
-            else
-                newMapsets = mapsets;
+            return newMapsets.OrderBy(x => x.Maps.First().NotesPerSecond)
+                .ThenBy(x => x.Artist, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(x => x.Title, StringComparer.OrdinalIgnoreCase).ToList();
+        }
 
-            return newMapsets.OrderBy(x => x.Maps.First().NotesPerSecond).ToList();
+        private static List<Mapset> OrderMapsetsByLength(List<Mapset> mapsets, bool separateMapsets)
+        {
+            var newMapsets = separateMapsets
+                ? SeparateMapsByProperty(mapsets, m => m.SongLength)
+                : mapsets;
+
+            return newMapsets.OrderBy(x => x.Maps.First().SongLength)
+                .ThenBy(x => x.Artist, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(x => x.Title, StringComparer.OrdinalIgnoreCase).ToList();
         }
 
         /// <summary>
@@ -196,7 +302,9 @@ namespace Quaver.Shared.Database.Maps
         /// <returns></returns>
         private static List<Mapset> OrderMapsetsBySource(List<Mapset> mapsets)
         {
-            return mapsets.OrderBy(x => x.Maps.First().Source).ThenBy(x => x.Maps.First().Artist).ThenBy(x => x.Maps.First().Title).ToList();
+            return mapsets.OrderBy(x => x.Maps.First().Source, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(x => x.Maps.First().Artist, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(x => x.Maps.First().Title, StringComparer.OrdinalIgnoreCase).ToList();
         }
 
         /// <summary>
@@ -207,7 +315,9 @@ namespace Quaver.Shared.Database.Maps
         /// <exception cref="NotImplementedException"></exception>
         private static List<Mapset> OrderMapsetsByGame(List<Mapset> mapsets)
         {
-            return mapsets.OrderBy(x => x.Maps.First().Game).ThenBy(x => x.Maps.First().Artist).ThenBy(x => x.Maps.First().Title).ToList();
+            return mapsets.OrderBy(x => x.Maps.First().Game)
+                .ThenBy(x => x.Maps.First().Artist, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(x => x.Maps.First().Title, StringComparer.OrdinalIgnoreCase).ToList();
         }
 
         /// <summary>
@@ -217,7 +327,9 @@ namespace Quaver.Shared.Database.Maps
         /// <returns></returns>
         internal static List<Mapset> OrderMapsetsByCreator(IEnumerable<Mapset> mapsets)
         {
-            return mapsets.OrderBy(x => x.Maps.First().Creator).ThenBy(x => x.Maps.First().Artist).ThenBy(x => x.Maps.First().Title).ToList();
+            return mapsets.OrderBy(x => x.Maps.First().Creator, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(x => x.Maps.First().Artist, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(x => x.Maps.First().Title, StringComparer.OrdinalIgnoreCase).ToList();
         }
 
         /// <summary>
@@ -227,9 +339,9 @@ namespace Quaver.Shared.Database.Maps
         /// <returns></returns>
         internal static List<Mapset> OrderMapsetsByTimesPlayed(IEnumerable<Mapset> mapsets)
         {
-            return mapsets.OrderByDescending(x => x.Maps.Max(y => y.TimesPlayed))
-                    .ThenBy(x => x.Maps.First().Artist)
-                    .ThenBy(x => x.Maps.First().Title).ToList();
+            return mapsets.OrderBy(x => x.Maps.Max(y => y.TimesPlayed))
+                .ThenBy(x => x.Maps.First().Artist, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(x => x.Maps.First().Title, StringComparer.OrdinalIgnoreCase).ToList();
         }
 
         /// <summary>
@@ -239,9 +351,9 @@ namespace Quaver.Shared.Database.Maps
         /// <returns></returns>
         private static List<Mapset> OrderMapsetsByRecentlyPlayed(List<Mapset> mapsets)
         {
-            return mapsets.OrderByDescending(x => x.Maps.Max(y => y.LastTimePlayed))
-                .ThenBy(x => x.Maps.First().Artist)
-                .ThenBy(x => x.Maps.First().Title).ToList();
+            return mapsets.OrderBy(x => x.Maps.Max(y => y.LastTimePlayed))
+                .ThenBy(x => x.Maps.First().Artist, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(x => x.Maps.First().Title, StringComparer.OrdinalIgnoreCase).ToList();
         }
 
         /// <summary>
@@ -254,94 +366,66 @@ namespace Quaver.Shared.Database.Maps
         /// <returns></returns>
         /// <exception cref="ArgumentOutOfRangeException"></exception>
         internal static List<Mapset> OrderMapsetsByConfigValue(List<Mapset> mapsets, bool separateMapsets = true,
-            Bindable<GameMode> gameMode = null, Bindable<OrderMapsetsBy> orderMapsetsBy = null)
+            Bindable<OrderMapsetsBy>? orderMapsetsBy = null)
         {
             // Default to song select filter options
-            if (gameMode == null)
-                gameMode = ConfigManager.SelectFilterGameModeBy;
+            orderMapsetsBy ??= ConfigManager.SelectOrderMapsetsBy;
 
-            if (orderMapsetsBy == null)
-                orderMapsetsBy = ConfigManager.SelectOrderMapsetsBy;
-
-            var mapsetsToRemove = new List<Mapset>();
-
-            switch (gameMode?.Value)
+            var result = orderMapsetsBy?.Value switch
             {
-                case 0:
-                    break;
-                default:
-                    mapsets.ForEach(x =>
-                        {
-                        x.Maps.RemoveAll(y => y.Mode != gameMode?.Value);
+                OrderMapsetsBy.Artist => OrderMapsetsByArtist(mapsets),
+                OrderMapsetsBy.Title => OrderMapsetsByTitle(mapsets),
+                OrderMapsetsBy.Creator => OrderMapsetsByCreator(mapsets),
+                OrderMapsetsBy.DateAdded => OrderMapsetsByDateAdded(mapsets),
+                OrderMapsetsBy.Status => OrderMapsetsByStatus(mapsets),
+                OrderMapsetsBy.BPM => OrderMapsetsByBpm(mapsets, separateMapsets),
+                OrderMapsetsBy.TimesPlayed => OrderMapsetsByTimesPlayed(mapsets),
+                OrderMapsetsBy.RecentlyPlayed => OrderMapsetsByRecentlyPlayed(mapsets),
+                OrderMapsetsBy.Genre => OrderMapsetsByGenre(mapsets),
+                OrderMapsetsBy.Game => OrderMapsetsByGame(mapsets),
+                OrderMapsetsBy.Length => OrderMapsetsByLength(mapsets, separateMapsets),
+                OrderMapsetsBy.Source => OrderMapsetsBySource(mapsets),
+                OrderMapsetsBy.Difficulty => OrderMapsetsByDifficulty(mapsets, separateMapsets),
+                OrderMapsetsBy.OnlineGrade => OrderMapsetsByOnlineGrade(mapsets, separateMapsets),
+                OrderMapsetsBy.DateLastUpdated => OrderMapsetsByDateLastUpdated(mapsets),
+                OrderMapsetsBy.DateRanked => OrderMapsetsByDateRanked(mapsets),
+                OrderMapsetsBy.LongNotePercentage => OrderMapsetsByLongNotePercentage(mapsets, separateMapsets),
+                OrderMapsetsBy.NotesPerSecond => OrderMapsetsByNotesPerSecond(mapsets, separateMapsets),
+                _ => mapsets.ToList()
+            };
 
-                        if (x.Maps.Count == 0)
-                            mapsetsToRemove.Add(x);
-                    });
-                    break;
-            }
+            if (ConfigManager.SelectSortDirection.Value == SortDirection.Descending)
+                result.Reverse();
 
-            mapsetsToRemove.ForEach(x => mapsets.Remove(x));
-
-            switch (orderMapsetsBy?.Value)
-            {
-                case OrderMapsetsBy.Artist:
-                    return OrderMapsetsByArtist(mapsets);
-                case OrderMapsetsBy.Title:
-                    return OrderMapsetsByTitle(mapsets);
-                case OrderMapsetsBy.Creator:
-                    return OrderMapsetsByCreator(mapsets);
-                case OrderMapsetsBy.DateAdded:
-                    return OrderMapsetsByDateAdded(mapsets);
-                case OrderMapsetsBy.Status:
-                    return OrderMapsetsByStatus(mapsets);
-                case OrderMapsetsBy.BPM:
-                    return OrderMapsetsByBpm(mapsets);
-                case OrderMapsetsBy.TimesPlayed:
-                    return OrderMapsetsByTimesPlayed(mapsets);
-                case OrderMapsetsBy.RecentlyPlayed:
-                    return OrderMapsetsByRecentlyPlayed(mapsets);
-                case OrderMapsetsBy.Genre:
-                    return OrderMapsetsByGenre(mapsets);
-                case OrderMapsetsBy.Game:
-                    return OrderMapsetsByGame(mapsets);
-                case OrderMapsetsBy.Length:
-                    return OrderMapsetsByLength(mapsets);
-                case OrderMapsetsBy.Source:
-                    return OrderMapsetsBySource(mapsets);
-                case OrderMapsetsBy.Difficulty:
-                    return OrderMapsetsByDifficulty(mapsets, separateMapsets);
-                case OrderMapsetsBy.OnlineGrade:
-                    return OrderMapsetsByOnlineGrade(mapsets, separateMapsets);
-                case OrderMapsetsBy.DateLastUpdated:
-                    return OrderMapsetsByDateLastUpdated(mapsets);
-                case OrderMapsetsBy.DateRanked:
-                    return OrderMapsetsByDateRanked(mapsets);
-                case OrderMapsetsBy.LongNotePercentage:
-                    return OrderMapsetsByLongNotePercentage(mapsets, separateMapsets);
-                case OrderMapsetsBy.NotesPerSecond:
-                    return OrderMapsetsByNotesPerSecond(mapsets, separateMapsets);
-                default:
-                    return mapsets.ToList();
-            }
+            return result;
         }
 
         /// <summary>
-        ///     Orders maps by difficulty.
-        ///     In this, each map gets its own individual mapset
+        ///     Main search/filtering logic for Mapsets.
+        ///     V2 implementation: performs single-pass evaluation of diff range, status, and game mode.
         /// </summary>
         /// <param name="mapsets"></param>
         /// <param name="separateMapsets"></param>
         /// <returns></returns>
         private static List<Mapset> OrderMapsetsByDifficulty(List<Mapset> mapsets, bool separateMapsets)
         {
-            var newMapsets = new List<Mapset>();
+            var mods = ModManager.Mods;
+            
+            var newMapsets = separateMapsets
+                ? SeparateMapsByProperty(mapsets, m => Math.Round(m.DifficultyFromMods(mods), 2))
+                : mapsets;
 
-            if (separateMapsets)
-                newMapsets = SeparateMapsIntoOwnMapsets(mapsets);
-            else
-                newMapsets = mapsets;
+            // Cache difficulties to avoid repeated calculations during sorting
+            var difficultyCache = new Dictionary<Mapset, double>();
+            return newMapsets.OrderBy(x =>
+            {
+                if (difficultyCache.TryGetValue(x, out var cachedDiff))
+                    return cachedDiff;
 
-            return newMapsets.OrderBy(x => x.Maps.First().DifficultyFromMods(ModManager.Mods)).ToList();
+                var diff = x.Maps.First().DifficultyFromMods(mods);
+                difficultyCache[x] = diff;
+                return diff;
+            }).ToList();
         }
 
         /// <summary>
@@ -352,14 +436,18 @@ namespace Quaver.Shared.Database.Maps
         /// <returns></returns>
         internal static List<Mapset> OrderMapsetsByOnlineGrade(List<Mapset> mapsets, bool separateMapsets)
         {
-            var newMapsets = new List<Mapset>();
+            var newMapsets = separateMapsets
+                ? SeparateMapsByProperty(mapsets, m => m.OnlineGrade)
+                : mapsets;
 
-            if (separateMapsets)
-                newMapsets = SeparateMapsIntoOwnMapsets(mapsets);
-            else
-                newMapsets = mapsets;
+            var isDescending = ConfigManager.SelectSortDirection.Value == SortDirection.Descending;
+            var noneWeight = isDescending ? int.MinValue : int.MaxValue;
 
-            return newMapsets.OrderBy(x => GradeHelper.GetGradeImportanceIndex(x.Maps.First().OnlineGrade)).ToList();
+            return newMapsets.OrderBy(x =>
+            {
+                var grade = x.Maps.First().OnlineGrade;
+                return grade == Grade.None ? noneWeight : GradeHelper.GetGradeImportanceIndex(grade);
+            }).ToList();
         }
 
         /// <summary>
@@ -370,73 +458,95 @@ namespace Quaver.Shared.Database.Maps
         /// <returns></returns>
         internal static List<Mapset> OrderMapsetsByLongNotePercentage(List<Mapset> mapsets, bool separateMapsets)
         {
-            var newMapsets = new List<Mapset>();
-
-            if (separateMapsets)
-                newMapsets = SeparateMapsIntoOwnMapsets(mapsets);
-            else
-                newMapsets = mapsets;
+            var newMapsets = separateMapsets
+                ? SeparateMapsByProperty(mapsets, m => Math.Round(m.LNPercentage, 2))
+                : mapsets;
 
             return newMapsets.OrderBy(x => x.Maps.First().LNPercentage).ToList();
         }
 
-        /// <summary>
-        ///     Orders mapsets by the date they were last updated online
-        /// </summary>
-        /// <param name="mapsets"></param>
-        /// <returns></returns>
         private static List<Mapset> OrderMapsetsByDateLastUpdated(List<Mapset> mapsets)
         {
-            return mapsets.OrderByDescending(x => x.Maps.Max(y => y.DateLastUpdated)).ThenBy(x => x.Maps.First().Artist)
-                .ThenBy(x => x.Maps.First().Title).ToList();
+            return mapsets.OrderBy(x => x.Maps.Max(y => y.DateLastUpdated))
+                .ThenBy(x => x.Maps.First().Artist, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(x => x.Maps.First().Title, StringComparer.OrdinalIgnoreCase).ToList();
         }
 
-        /// <summary>
-        ///     Orders mapsets by the date they were ranked
-        /// </summary>
-        /// <param name="mapsets"></param>
-        /// <returns></returns>
         private static List<Mapset> OrderMapsetsByDateRanked(List<Mapset> mapsets)
         {
-            return mapsets.OrderByDescending(x => x.Maps.First().RankedStatus)
-                .ThenByDescending(x => x.Maps.Max(y => y.DateLastUpdated))
-                .ThenBy(x => x.Maps.First().Artist)
-                .ThenBy(x => x.Maps.First().Title).ToList();
+            return mapsets.OrderBy(x => x.Maps.First().RankedStatus)
+                .ThenBy(x => x.Maps.Max(y => y.DateLastUpdated))
+                .ThenBy(x => x.Maps.First().Artist, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(x => x.Maps.First().Title, StringComparer.OrdinalIgnoreCase).ToList();
         }
 
-        /// <summary>
-        ///     Orders the mapsets by BPM
-        /// </summary>
-        /// <param name="mapsets"></param>
-        /// <returns></returns>
-        private static List<Mapset> OrderMapsetsByBpm(List<Mapset> mapsets)
-            => mapsets.OrderBy(x => x.Maps.First().Bpm).ThenBy(x => x.Maps.First().Artist).ThenBy(x => x.Maps.First().Title).ToList();
+        private static List<Mapset> OrderMapsetsByBpm(List<Mapset> mapsets, bool separateMapsets)
+        {
+            var newMapsets = separateMapsets
+                ? SeparateMapsByProperty(mapsets, m => Math.Round(m.Bpm, 2))
+                : mapsets;
 
-        /// <summary>
-        ///     Orders the map's mapsets by date added
-        /// </summary>
-        /// <param name="mapsets"></param>
-        /// <returns></returns>
+            return newMapsets.OrderBy(x => x.Maps.First().Bpm)
+                .ThenBy(x => x.Maps.First().Artist, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(x => x.Maps.First().Title, StringComparer.OrdinalIgnoreCase).ToList();
+        }
+
         internal static List<Mapset> OrderMapsetsByDateAdded(IEnumerable<Mapset> mapsets)
-            => mapsets.OrderByDescending(x => x.Maps.First().DateAdded).ThenBy(x => x.Maps.First().Artist).ThenBy(x => x.Maps.First().Title).ToList();
+            => mapsets.OrderBy(x => x.Maps.First().DateAdded)
+                .ThenBy(x => x.Maps.First().Artist, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(x => x.Maps.First().Title, StringComparer.OrdinalIgnoreCase).ToList();
 
-        /// <summary>
-        ///     Orders mapsets by their ranked status
-        /// </summary>
-        /// <param name="mapsets"></param>
-        /// <returns></returns>
         internal static List<Mapset> OrderMapsetsByStatus(IEnumerable<Mapset> mapsets)
-            => mapsets.OrderByDescending(x => x.Maps.First().RankedStatus).ThenBy(x => x.Maps.First().Artist).ThenBy(x => x.Maps.First().Title).ToList();
+            => mapsets.OrderBy(x => x.Maps.First().RankedStatus)
+                .ThenBy(x => x.Maps.First().Artist, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(x => x.Maps.First().Title, StringComparer.OrdinalIgnoreCase).ToList();
 
-        /// <summary>
-        ///     Orders the map's mapsets by difficulty.
-        /// </summary>
-        /// <param name="mapsets"></param>
-        /// <returns></returns>
         internal static List<Mapset> OrderMapsByDifficulty(List<Mapset> mapsets)
         {
             mapsets.ForEach(x => x.Maps = x.Maps.OrderBy(y => y.Difficulty10X).ToList());
             return mapsets;
+        }
+
+        /// <summary>
+        ///     Groups maps within each mapset by a property value and creates separate
+        ///     Mapset instances for each group. Maps sharing the same property value
+        ///     remain together in one Mapset; different values produce separate Mapsets.
+        ///     This is the universal grouping method used by BPM, NPS, LN%, Difficulty, etc.
+        /// </summary>
+        /// <typeparam name="TKey">The type of the grouping property</typeparam>
+        /// <param name="mapsets">Source mapsets to split</param>
+        /// <param name="propertySelector">Function extracting the grouping key from a Map</param>
+        /// <returns>New list of Mapsets grouped by the property value</returns>
+        internal static List<Mapset> SeparateMapsByProperty<TKey>(List<Mapset> mapsets, Func<Map, TKey> propertySelector)
+        {
+            var result = new List<Mapset>();
+
+            foreach (var mapset in mapsets)
+            {
+                // Grouping maps within a set. We use a single pass to avoid multiple property lookups.
+                var groups = new Dictionary<TKey, List<Map>>();
+                foreach (var map in mapset.Maps)
+                {
+                    var key = propertySelector(map);
+                    if (!groups.TryGetValue(key, out var list))
+                    {
+                        list = new List<Map>();
+                        groups[key] = list;
+                    }
+                    list.Add(map);
+                }
+
+                foreach (var group in groups.Values)
+                {
+                    result.Add(new Mapset
+                    {
+                        Directory = mapset.Directory,
+                        Maps = group
+                    });
+                }
+            }
+
+            return result;
         }
 
         /// <summary>
@@ -474,10 +584,13 @@ namespace Quaver.Shared.Database.Maps
 
             foreach (var map in maps)
             {
+                if (map == null)
+                    continue;
+
                 var mapset = new Mapset
                 {
                     Directory = map?.Mapset?.Directory ?? "",
-                    Maps = new List<Map> { map }
+                    Maps = new List<Map> { map! }
                 };
 
                 mapsets.Add(mapset);
@@ -493,7 +606,6 @@ namespace Quaver.Shared.Database.Maps
 
         internal static void InitializeSearchKeywordTrie()
         {
-            _searchKeywordTrie = new Trie();
             var keys = new Dictionary<string, SearchFilterOption>
             {
                 ["artists"] = SearchFilterOption.Artist,
@@ -531,26 +643,22 @@ namespace Quaver.Shared.Database.Maps
                 ["unsubmitted"] = RankedStatus.NotSubmitted,
             };
 
-            SearchEnumKeyDictionary.Clear();
-
+            _searchKeywordTrie = new Trie();
+            _searchEnumKeyDictionary.Clear();
 
             foreach (var (key, option) in keys)
-            {
                 _searchKeywordTrie.Add(key, TokenKind.Key, option);
-            }
 
             foreach (var (name, mapGame) in gameTypes)
             {
                 _searchKeywordTrie.Add(name, TokenKind.Enum, mapGame);
-                // TryAdd since we have multiple possible enum strings that point to the same value
-                SearchEnumKeyDictionary.TryAdd(mapGame, SearchFilterOption.Game);
+                _searchEnumKeyDictionary.TryAdd(mapGame, SearchFilterOption.Game);
             }
 
             foreach (var (name, rankedStatus) in rankedStatuses)
             {
                 _searchKeywordTrie.Add(name, TokenKind.Enum, rankedStatus);
-                // TryAdd since we have multiple possible enum strings that point to the same value
-                SearchEnumKeyDictionary.TryAdd(rankedStatus, SearchFilterOption.Status);
+                _searchEnumKeyDictionary.TryAdd(rankedStatus, SearchFilterOption.Status);
             }
         }
 
@@ -560,50 +668,53 @@ namespace Quaver.Shared.Database.Maps
         /// <param name="mapsets"></param>
         /// <param name="query"></param>
         /// <returns></returns>
-        internal static List<Mapset> SearchMapsets(IEnumerable<Mapset> mapsets, string query)
+        internal static List<Mapset> SearchMapsets(IEnumerable<Mapset> mapsets, string query,
+            float minDiff = 0, float maxDiff = 99.99f, RankedStatusFilter statusFilter = RankedStatusFilter.All,
+            int modeToFilter = 0)
         {
             var sets = new List<Mapset>();
 
             query = query.ToLower();
 
-            var tokenizer = new Tokenizer(query);
-            tokenizer.KeywordTrie = _searchKeywordTrie;
+            var tokenizer = new Tokenizer(query) { KeywordTrie = _searchKeywordTrie };
 
-            var parser = new Parser(tokenizer);
-            parser.SearchCriterionConstraint = criterion =>
+            var parser = new Parser(tokenizer)
             {
-                // This is redundant check, but just in case...
-                if (criterion.Values.Count == 0)
-                    return false;
-
-                var option = (SearchFilterOption)criterion.Key.Value!;
-                var valueKind = criterion.Values.FirstOrDefault()?.Token.Kind;
-
-                if (valueKind is TokenKind.Enum)
-                    return criterion.Values.All(v =>
-                        SearchEnumKeyDictionary.TryGetValue(v.Value!, out var key) && key.Equals(criterion.Key.Value));
-
-                return option switch
+                SearchCriterionConstraint = criterion =>
                 {
-                    SearchFilterOption.BPM or SearchFilterOption.Difficulty when criterion.Values.Count == 1 =>
-                        valueKind is TokenKind.Integer or TokenKind.Real,
-                    SearchFilterOption.Length when criterion.Values.Count == 1 =>
-                        valueKind is TokenKind.Integer or TokenKind.TimeSpan,
-                    SearchFilterOption.Status or SearchFilterOption.Game =>
-                        valueKind is TokenKind.Enum,
-                    SearchFilterOption.Keys when criterion.Values.Count == 1 =>
-                        valueKind is TokenKind.Integer,
-                    SearchFilterOption.LNs when criterion.Values.Count == 1 =>
-                        valueKind is TokenKind.Integer or TokenKind.Percentage,
-                    SearchFilterOption.NPS or SearchFilterOption.TimesPlayed when criterion.Values.Count == 1 =>
-                        valueKind is TokenKind.Integer,
-                    SearchFilterOption.Title or SearchFilterOption.Tags or
-                        SearchFilterOption.Source or SearchFilterOption.Artist or
-                        SearchFilterOption.Creator or SearchFilterOption.Description or
-                        SearchFilterOption.DifficultyName or SearchFilterOption.Genre =>
-                        valueKind is TokenKind.String or TokenKind.PlainText,
-                    _ => false
-                };
+                    // This is redundant check, but just in case...
+                    if (criterion.Values.Count == 0)
+                        return false;
+
+                    var option = (SearchFilterOption)criterion.Key.Value!;
+                    var valueKind = criterion.Values.FirstOrDefault()?.Token.Kind;
+
+                    if (valueKind is TokenKind.Enum)
+                        return criterion.Values.All(v =>
+                            _searchEnumKeyDictionary.TryGetValue(v.Value!, out var key) && key.Equals(criterion.Key.Value));
+
+                    return option switch
+                    {
+                        SearchFilterOption.BPM or SearchFilterOption.Difficulty when criterion.Values.Count == 1 =>
+                            valueKind is TokenKind.Integer or TokenKind.Real,
+                        SearchFilterOption.Length when criterion.Values.Count == 1 =>
+                            valueKind is TokenKind.Integer or TokenKind.TimeSpan,
+                        SearchFilterOption.Status or SearchFilterOption.Game =>
+                            valueKind is TokenKind.Enum,
+                        SearchFilterOption.Keys when criterion.Values.Count == 1 =>
+                            valueKind is TokenKind.Integer,
+                        SearchFilterOption.LNs when criterion.Values.Count == 1 =>
+                            valueKind is TokenKind.Integer or TokenKind.Percentage,
+                        SearchFilterOption.NPS or SearchFilterOption.TimesPlayed when criterion.Values.Count == 1 =>
+                            valueKind is TokenKind.Integer,
+                        SearchFilterOption.Title or SearchFilterOption.Tags or
+                            SearchFilterOption.Source or SearchFilterOption.Artist or
+                            SearchFilterOption.Creator or SearchFilterOption.Description or
+                            SearchFilterOption.DifficultyName or SearchFilterOption.Genre =>
+                            valueKind is TokenKind.String or TokenKind.PlainText,
+                        _ => false
+                    };
+                }
             };
 
             parser.SingletonEnumProcessor = listValue =>
@@ -611,14 +722,12 @@ namespace Quaver.Shared.Database.Maps
                 // List must not be empty
                 if (listValue.Count == 0) return Array.Empty<SearchCriterion>();
                 // First value must have valid key correspondence
-                if (!SearchEnumKeyDictionary.TryGetValue(listValue[0].Value!, out var firstValueKey))
+                if (!_searchEnumKeyDictionary.TryGetValue(listValue[0].Value!, out var firstValueKey))
                     return Array.Empty<SearchCriterion>();
                 // Coherent types for all values
-                if (listValue.Any(v =>
-                        !SearchEnumKeyDictionary.TryGetValue(v.Value!, out var filterOption) ||
-                        filterOption != firstValueKey))
-                    return Array.Empty<SearchCriterion>();
-                return new[] { new SearchCriterion(firstValueKey, TokenKind.Equal, listValue, false) };
+                return listValue.Any(v =>
+                    !_searchEnumKeyDictionary.TryGetValue(v.Value!, out var filterOption) ||
+                    filterOption != firstValueKey) ? Array.Empty<SearchCriterion>() : new[] { new SearchCriterion(firstValueKey, TokenKind.Equal, listValue, false) };
             };
 
             parser.Parse();
@@ -627,21 +736,51 @@ namespace Quaver.Shared.Database.Maps
 
             var newMapsetLookup = new Dictionary<string, Mapset>();
 
+            var mods = ModManager.Mods;
+
             // Create a list of mapsets with the matched mapsets
             foreach (var mapset in mapsets)
             {
                 foreach (var map in mapset.Maps)
                 {
+                    // Filter 1: Game Mode (Cheapest check)
+                    if (modeToFilter != 0 && (int)map.Mode != modeToFilter)
+                        continue;
+
+                    // Filter 2: Ranked Status
+                    if (statusFilter != RankedStatusFilter.All)
+                    {
+                        var statusMatch = statusFilter switch
+                        {
+                            RankedStatusFilter.Ranked => map.RankedStatus == RankedStatus.Ranked,
+                            RankedStatusFilter.Unranked => map.RankedStatus == RankedStatus.Unranked,
+                            RankedStatusFilter.NotSubmitted => map.RankedStatus == RankedStatus.NotSubmitted && map.Game == MapGame.Quaver,
+                            RankedStatusFilter.OtherGames => map.Game != MapGame.Quaver,
+                            RankedStatusFilter.ThisGame => map.Game == MapGame.Quaver,
+                            _ => true
+                        };
+
+                        if (!statusMatch)
+                            continue;
+                    }
+
+                    // Filter 3: Difficulty Range (Calculation needed, but relatively cheap)
+                    var diff = map.DifficultyFromMods(mods);
+                    if (diff < minDiff || diff > maxDiff)
+                        continue;
+
+                    // Filter 4: Search Query (Most expensive - requires parser evaluation)
                     if (!ast.Evaluate(map, EvaluateMapAgainstQuery))
                         continue;
 
                     // Create a new mapset if it doesn't exist
-                    if (!newMapsetLookup.ContainsKey(map.Directory))
+                    if (!newMapsetLookup.TryGetValue(map.Directory, out var set))
                     {
-                        var set = new Mapset()
+                        set = new Mapset
                         {
                             Directory = map.Directory,
-                            Maps = new List<Map>()
+                            Maps = new List<Map>(),
+                            AllModesInSet = mapset.Maps.Select(x => x.Mode).Distinct().ToList()
                         };
                         set.Maps.Add(map);
 
@@ -650,7 +789,7 @@ namespace Quaver.Shared.Database.Maps
                     }
                     // Otherwise just add the mapset to the existing set
                     else
-                        newMapsetLookup[map.Directory].Maps.Add(map);
+                        set.Maps.Add(map);
                 }
             }
 
@@ -673,26 +812,24 @@ namespace Quaver.Shared.Database.Maps
                 var termContent = (string)searchQuery.Value.Value!;
                 try
                 {
-                    var containsText = !StringHelper.ContainsIgnoreCase(map.Artist, termContent) &&
-                                    !StringHelper.ContainsIgnoreCase(map.Title, termContent) &&
-                                    !StringHelper.ContainsIgnoreCase(map.Creator, termContent) &&
-                                    !StringHelper.ContainsIgnoreCase(map.Source, termContent) &&
-                                    !StringHelper.ContainsIgnoreCase(map.Description, termContent) &&
-                                    !StringHelper.ContainsIgnoreCase(map.Tags, termContent) &&
-                                    !StringHelper.ContainsIgnoreCase(map.DifficultyName, termContent) &&
-                                    !StringHelper.ContainsIgnoreCase(map.Genre, termContent);
-                    if (containsText)
-                    {
-                        return false;
-                    }
+                    // Reordered checks: Start with the most common/identifying fields (Title/Artist)
+                    // and exit early if a match is found. This avoids checking less relevant fields like Tags or Source for every map.
+                    if (StringHelper.ContainsIgnoreCase(map.Title, termContent)) return true;
+                    if (StringHelper.ContainsIgnoreCase(map.Artist, termContent)) return true;
+                    if (StringHelper.ContainsIgnoreCase(map.DifficultyName, termContent)) return true;
+                    if (StringHelper.ContainsIgnoreCase(map.Creator, termContent)) return true;
+                    if (StringHelper.ContainsIgnoreCase(map.Source, termContent)) return true;
+                    if (StringHelper.ContainsIgnoreCase(map.Description, termContent)) return true;
+                    if (StringHelper.ContainsIgnoreCase(map.Tags, termContent)) return true;
+                    if (StringHelper.ContainsIgnoreCase(map.Genre, termContent)) return true;
+
+                    return false;
                 }
                 catch (Exception)
                 {
                     // Some values can be null and they break the game.
                     return false;
                 }
-
-                return true;
             }
             switch ((SearchFilterOption)searchQuery.Key.Value!)
             {
@@ -778,9 +915,9 @@ namespace Quaver.Shared.Database.Maps
             if (string.IsNullOrEmpty(valString))
                 return false;
 
-            return CompareValues(valString.ToLower(),
-                searchQuery.Value.Value?.ToString()?.ToLower(),
-                operatorKind, false);
+            var queryValue = searchQuery.Value.Value?.ToString()?.ToLower();
+
+            return queryValue != null && CompareValues(valString.ToLower(), queryValue, operatorKind, false);
 
         }
 
