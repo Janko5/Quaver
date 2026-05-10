@@ -247,7 +247,7 @@ namespace Quaver.Shared.Graphics.Online.Playercard
             Tint = Colors.BlueishDarkGray;
 
             Size = new ScalableVector2(426, FullCard ? 154 : 96);
-            Image = AssetLoader.LoadTexture2D(GameBase.Game.Resources.GetStream("Quaver.Resources/Textures/UI/Playercard/playercard-bg.png"));
+            Image = AssetLoader.LoadTexture2D(GameBase.Game.Resources.GetStream("Quaver.Resources/Textures/UI/MenuBorder/Playercard/playercard-bg.png"));
 
             CreateTitle();
             CreateAvatar();
