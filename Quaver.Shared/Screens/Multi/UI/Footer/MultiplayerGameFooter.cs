@@ -31,8 +31,7 @@ namespace Quaver.Shared.Screens.Multi.UI.Footer
                 new IconTextButtonOptions(),
                 new IconTextButtonMultiplayerModifiers(screen),
                 new IconTextButtonMultiplayerLeaderboard(screen),
-                new IconTextButtonMapPreview(screen.ActiveLeftPanel),
-                new IconTextButtonProfile(screen.ActiveLeftPanel)
+                new IconTextButtonMapPreview(screen.ActiveLeftPanel)
             },
             new List<Drawable>()
             {
@@ -43,8 +42,8 @@ namespace Quaver.Shared.Screens.Multi.UI.Footer
         {
             Game = game;
 
-            SelectMap = new IconTextButtonMultiplayerSelectMap(screen) { DestroyIfParentIsNull = false};
-            SwitchTeams = new IconTextButtonMultiplayerSwitchTeams(Game) { DestroyIfParentIsNull = false};
+            SelectMap = new IconTextButtonMultiplayerSelectMap(screen) { DestroyIfParentIsNull = false };
+            SwitchTeams = new IconTextButtonMultiplayerSwitchTeams(Game) { DestroyIfParentIsNull = false };
 
             UpdateState();
 

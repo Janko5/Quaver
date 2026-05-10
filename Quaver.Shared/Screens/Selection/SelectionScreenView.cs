@@ -2,15 +2,20 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using Quaver.API.Enums;
 using Quaver.Shared.Assets;
 using Quaver.Shared.Config;
+using Quaver.Shared.Modifiers;
 using Quaver.Shared.Database.Maps;
 using Quaver.Shared.Database.Playlists;
 using Quaver.Shared.Database.Profiles;
 using Quaver.Shared.Graphics.Menu.Border;
 using Quaver.Shared.Helpers;
 using Quaver.Shared.Scheduling;
+using Quaver.Shared.Skinning;
 using Quaver.Shared.Screens.Menu.UI.Visualizer;
+using Quaver.Shared.Screens.Visualizer;
 using Quaver.Shared.Screens.Selection.Components;
 using Quaver.Shared.Screens.Selection.UI;
 using Quaver.Shared.Screens.Selection.UI.Background;
@@ -23,13 +28,22 @@ using Quaver.Shared.Screens.Selection.UI.Modifiers;
 using Quaver.Shared.Screens.Selection.UI.Playlists;
 using Quaver.Shared.Screens.Selection.UI.Playlists.Dialogs.Create;
 using Quaver.Shared.Screens.Selection.UI.Preview;
+using Quaver.Shared.Database.Judgements;
+using Quaver.API.Maps.Processors.Scoring;
 using Quaver.Shared.Screens.Selection.UI.Profile;
 using Quaver.Shared.Screens.Tests.UI.Borders;
+using Quaver.Shared.Modifiers.Mods;
+using Quaver.Shared.Graphics.Components;
 using Wobble;
 using Wobble.Bindables;
 using Wobble.Graphics;
+using Wobble.Graphics.Sprites;
 using Wobble.Graphics.Animations;
+using Wobble.Graphics.Sprites.Text;
 using Wobble.Graphics.UI;
+using Wobble.Graphics.UI.Buttons;
+using Wobble.Logging;
+using Wobble.Managers;
 using Wobble.Screens;
 using Wobble.Window;
 
@@ -58,9 +72,7 @@ namespace Quaver.Shared.Screens.Selection
         /// </summary>
         private MenuBorder Footer { get; set; }
 
-        /// <summary>
-        /// </summary>
-        private MenuAudioVisualizer Visualizer { get; set; }
+        private Drawable Visualizer { get; set; }
 
         /// <summary>
         /// </summary>
@@ -86,18 +98,34 @@ namespace Quaver.Shared.Screens.Selection
         /// </summary>
         private PlaylistContainer PlaylistContainer { get; set; }
 
-        /// <summary>
-        /// </summary>
-        private SelectMapPreviewContainer MapPreviewContainer { get; set; }
+         /// <summary>
+         /// </summary>
+         private SelectMapPreviewContainer MapPreviewContainer { get; set; }
+
+         /// <summary>
+         /// </summary>
+         private PreviewClippingContainer MapPreviewWrapper { get; set; }
 
         /// <summary>
         /// </summary>
-        private LocalProfileContainer ProfileContainer { get; set; }
+        private Sprite? TabsPanel { get; set; }
+
+        /// <summary>
+        /// </summary>
+        private TabButton? ModsTabButton { get; set; }
+
+        /// <summary>
+        /// </summary>
 
         /// <summary>
         ///     The position of the active panel on the left
         /// </summary>
-        private const int ScreenPaddingX = 50;
+        private const int ScreenPaddingX = 35;  // 10px gap from list + 15px scrollbar + 10px from screen edge
+
+        /// <summary>
+        ///     The left-side padding for the leaderboard/modifiers panel. V2 uses 20px, V1 uses ScreenPaddingX.
+        /// </summary>
+        private static int LeftPanelPaddingX => (SkinManager.Skin?.UserInterfaceVersion ?? 1.0f) == 2.0f ? 20 : ScreenPaddingX;
 
         /// <summary>
         ///     The amount of y-axis space between <see cref="FilterPanel"/> and the left panel
@@ -120,10 +148,12 @@ namespace Quaver.Shared.Screens.Selection
             CreateMapContainer();
             CreateMapPreviewContainer();
             CreatePlaylistContainer();
-            ReorderContainerLayerDepth();
+
             CreateLeaderboardContainer();
             CreateModifierSelectorContainer();
-            CreateUserProfileContainer();
+            CreateTabsPanel();
+            ReorderContainerLayerDepth();
+
 
             SelectScreen.ActiveLeftPanel.ValueChanged += OnActiveLeftPanelChanged;
             SelectScreen.AvailableMapsets.ValueChanged += OnAvailableMapsetsChanged;
@@ -135,10 +165,14 @@ namespace Quaver.Shared.Screens.Selection
             PlaylistManager.PlaylistDeleted += OnPlaylistDeleted;
             PlaylistManager.PlaylistSynced += OnPlaylistSynced;
             PlaylistContainer.ContainerInitialized += OnPlaylistContainerInitialized;
-            FilterPanel.SearchBox.OnStoppedTyping += OnSearchingStopped;
+            if (FilterPanel.SearchBox != null)
+                FilterPanel.SearchBox.OnStoppedTyping += OnSearchingStopped;
+            if (FilterPanel.SearchBoxV2 != null)
+                FilterPanel.SearchBoxV2.OnStoppedTyping += OnSearchingStopped;
 
             // Trigger a scroll container change, to bring in the correct container
             SelectScreen.ActiveScrollContainer.TriggerChange();
+            SelectScreen.ActiveLeftPanel.TriggerChange();
         }
 
         /// <inheritdoc />
@@ -163,6 +197,7 @@ namespace Quaver.Shared.Screens.Selection
         public override void Destroy()
         {
             Container?.Destroy();
+            TabsPanel?.Destroy();
 
             // ReSharper disable twice DelegateSubtraction
             SelectScreen.ActiveLeftPanel.ValueChanged -= OnActiveLeftPanelChanged;
@@ -173,7 +208,20 @@ namespace Quaver.Shared.Screens.Selection
             PlaylistManager.PlaylistSynced -= OnPlaylistSynced;
             PlaylistContainer.ContainerInitialized -= OnPlaylistContainerInitialized;
             SelectScreen.ScreenExiting -= OnExiting;
-            FilterPanel.SearchBox.OnStoppedTyping -= OnSearchingStopped; ;
+            SelectScreen.AvailableMapsets.ValueChanged -= OnAvailableMapsetsChanged;
+            SelectScreen.ActiveScrollContainer.ValueChanged -= OnActiveScrollContainerChanged;
+            ModManager.ModsChanged -= OnModsChanged;
+
+            if (JudgementWindowsDatabaseCache.Selected != null)
+                JudgementWindowsDatabaseCache.Selected.ValueChanged -= OnJudgementWindowsChanged;
+
+            if (FilterPanel != null)
+                FilterPanel.HeightChanged -= OnFilterPanelHeightChanged;
+
+            if (FilterPanel?.SearchBox != null)
+                FilterPanel.SearchBox.OnStoppedTyping -= OnSearchingStopped;
+            if (FilterPanel?.SearchBoxV2 != null)
+                FilterPanel.SearchBoxV2.OnStoppedTyping -= OnSearchingStopped;
         }
 
         /// <summary>
@@ -206,41 +254,85 @@ namespace Quaver.Shared.Screens.Selection
         /// </summary>
         private void CreateAudioVisualizer()
         {
-            Visualizer = new MenuAudioVisualizer((int)WindowManager.Width, 600, 65, 3, 8)
-            {
-                Parent = Container,
-                Alignment = Alignment.BotLeft,
-                Y = -Footer.Height
-            };
+            var visualizerType = SkinManager.Skin.MusicVisualizer.MusicVisualizerType;
 
-            Visualizer.Bars.ForEach(x => x.Alpha = 0.25f);
+            if (visualizerType == 0)
+                return;
+
+            if (visualizerType == 2)
+            {
+                Visualizer = new DotMatrixAudioVisualizer(700, (int)Footer.Height, 4, 2)
+                {
+                    Parent = Footer,
+                    Alignment = Alignment.BotLeft,
+                    X = (WindowManager.Width - 700) / 2,
+                    Y = 0,
+                };
+            }
+            else if (visualizerType == 3)
+            {
+                Visualizer = new WaveAudioVisualizer(700, (int)Footer.Height, 8)
+                {
+                    Parent = Footer,
+                    Alignment = Alignment.BotLeft,
+                    X = (WindowManager.Width - 700) / 2,
+                    Y = 0,
+                };
+            }
+            else
+            {
+                var barVisualizer = new MenuAudioVisualizer(700, (int)Footer.Height, 100, 3, 4)
+                {
+                    Parent = Footer,
+                    Alignment = Alignment.BotLeft,
+                    X = (WindowManager.Width - 700) / 2,
+                    Y = 0,
+                };
+
+                // Respect skin alpha if MusicVisualizer section is present
+                if (SkinManager.Skin?.MusicVisualizer == null || SkinManager.Skin.Config == null || !SkinManager.Skin.Config.Sections.ContainsSection("MusicVisualizer"))
+                    barVisualizer.Bars.ForEach(x => x.Alpha = 1.0f);
+
+                Visualizer = barVisualizer;
+            }
         }
 
         /// <summary>
         ///     Creates <see cref="FilterPanel"/>
         /// </summary>
-        private void CreateFilterPanel() => FilterPanel = new SelectFilterPanel(SelectScreen.AvailableMapsets,
-            SelectScreen.CurrentSearchQuery, SelectScreen.IsPlayTestingInPreview, SelectScreen.ActiveLeftPanel)
+        private void CreateFilterPanel()
         {
-            Parent = Container,
-            Y = Header.Height + Header.ForegroundLine.Height - 2
-        };
+            var version = SkinManager.Skin?.UserInterfaceVersion ?? 1.0f;
+
+            FilterPanel = new SelectFilterPanel(SelectScreen.AvailableMapsets,
+                SelectScreen.CurrentSearchQuery, SelectScreen.IsPlayTestingInPreview, SelectScreen.ActiveLeftPanel)
+            {
+                Parent = Container,
+                Alignment = version == 2.0f ? Alignment.TopRight : Alignment.TopLeft,
+                Y = version == 2.0f
+                    ? Header.Height + 10  // V2.0: 10px below header
+                    : Header.Height + Header.ForegroundLine.Height - 2  // V1.0: current position
+            };
+
+            FilterPanel.HeightChanged += OnFilterPanelHeightChanged;
+        }
 
         /// <summary>
         ///     Creates <see cref="LeaderboardContainer"/>
         /// </summary>
         private void CreateLeaderboardContainer()
         {
+            var version = SkinManager.Skin?.UserInterfaceVersion ?? 1.0f;
             LeaderboardContainer = new LeaderboardContainer
             {
                 Parent = Container,
                 Alignment = Alignment.TopLeft,
-                X = ScreenPaddingX,
-                Y = FilterPanel.Y + FilterPanel.Height + LeftPanelSpacingY
+                X = LeftPanelPaddingX,
+                Y = version == 2.0f ? Header.Height + 80 : FilterPanel.Y + FilterPanel.Height + LeftPanelSpacingY
             };
 
-            LeaderboardContainer.X = -LeaderboardContainer.Width - ScreenPaddingX;
-            LeaderboardContainer.MoveToX(ScreenPaddingX, Easing.OutQuint, 500);
+            LeaderboardContainer.X = -LeaderboardContainer.Width - LeftPanelPaddingX;
+            LeaderboardContainer.MoveToX(LeftPanelPaddingX, Easing.OutQuint, 500);
         }
 
         /// <summary>
@@ -262,44 +354,145 @@ namespace Quaver.Shared.Screens.Selection
         /// </summary>
         private void CreateMapPreviewContainer()
         {
-            MapPreviewContainer = new SelectMapPreviewContainer(SelectScreen.IsPlayTestingInPreview, SelectScreen.ActiveLeftPanel,
-                (int)(WindowManager.Height - MenuBorder.HEIGHT * 2 - FilterPanel.Height))
-            {
-                Parent = Container,
-                Y = FilterPanel.Y + FilterPanel.Height
-            };
+             var version = SkinManager.Skin?.UserInterfaceVersion ?? 1.0f;
+             var containerY = version == 2.0f ? Header.Height + 70 : FilterPanel.Y + FilterPanel.Height;
+             var containerHeight = version == 2.0f ? (int)(WindowManager.Height - containerY - Footer.Height) : (int)(WindowManager.Height - MenuBorder.HEIGHT * 2 - FilterPanel.Height);
 
-            MapPreviewContainer.X = -MapPreviewContainer.Width - ScreenPaddingX;
+             MapPreviewWrapper = new PreviewClippingContainer
+             {
+                 Parent = Container,
+                 Y = containerY,
+                 Size = new ScalableVector2((SkinManager.Skin?.UserInterfaceVersion ?? 1.0f) == 2.0f ? 725 : 564, containerHeight)
+             };
+
+             MapPreviewContainer = new SelectMapPreviewContainer(SelectScreen.IsPlayTestingInPreview, SelectScreen.ActiveLeftPanel, containerHeight)
+             {
+                 Parent = MapPreviewWrapper,
+                 Y = 0
+             };
+
+             MapPreviewContainer.X = -MapPreviewContainer.Width - ScreenPaddingX;
         }
 
         /// <summary>
-        ///     Creates <see cref="ProfileContainer"/>
+        ///     Creates <see cref="TabsPanel"/>
         /// </summary>
-        private void CreateUserProfileContainer()
+        private void CreateTabsPanel()
         {
-            ProfileContainer = new LocalProfileContainer(UserProfileDatabaseCache.Selected ?? new Bindable<UserProfile>(null)
-            {
-                Value = new UserProfile()
-            })
+            var version = SkinManager.Skin?.UserInterfaceVersion ?? 1.0f;
+            if (version != 2.0f)
+                return;
+
+            TabsPanel = new Sprite
             {
                 Parent = Container,
-                Y = LeaderboardContainer.Y
+                Image = SkinManager.Skin?.SongSelect?.TabsPanel ?? UserInterface.TabsPanel,
+                Size = new ScalableVector2(725, 60),
+                Alignment = Alignment.TopLeft,
+                X = 20,
+                Y = Header.Height + 10
             };
 
-            ProfileContainer.X = -ProfileContainer.Width - ScreenPaddingX;
+            var lbButton = new TabButton("Leaderboard", () => SelectScreen.ActiveLeftPanel.Value = SelectContainerPanel.Leaderboard,
+                () => SelectScreen.ActiveLeftPanel.Value == SelectContainerPanel.Leaderboard)
+            {
+                Parent = TabsPanel,
+                X = 10f,
+                Y = (TabsPanel.Height - TabButton.StandardHeight) / 2
+            };
+
+            ModsTabButton = new TabButton("Modifiers", () => SelectScreen.ActiveLeftPanel.Value = SelectContainerPanel.Modifiers,
+                () => SelectScreen.ActiveLeftPanel.Value == SelectContainerPanel.Modifiers, null, true)
+            {
+                Parent = TabsPanel,
+                X = lbButton.X + lbButton.Width + 10f,
+                Y = lbButton.Y
+            };
+
+            var previewButton = new TabButton("", () => SelectScreen.ActiveLeftPanel.Value = SelectContainerPanel.MapPreview,
+                () => SelectScreen.ActiveLeftPanel.Value == SelectContainerPanel.MapPreview,
+                TextureManager.Load("Quaver.Resources/Textures/UI/SongSelect/LeftPanel/icon-view-map.png"))
+            {
+                Parent = TabsPanel,
+                X = TabsPanel.Width - TabButton.StandardHeight - 10f,
+                Y = lbButton.Y
+            };
+
+            // Set initial judgement window icon
+            if (JudgementWindowsDatabaseCache.Selected != null)
+                ModsTabButton.UpdateValueIcon(GetJudgementWindowTexture(JudgementWindowsDatabaseCache.Selected.Value.Name));
+
+            // Update icon when judgement window changes
+            if (JudgementWindowsDatabaseCache.Selected != null)
+                JudgementWindowsDatabaseCache.Selected.ValueChanged += OnJudgementWindowsChanged;
+
+            // Set initial mods
+            ModsTabButton.UpdateModIcons(ModManager.CurrentModifiersList);
+
+            // Update mods when they change
+            ModManager.ModsChanged += OnModsChanged;
         }
+
+        /// <summary>
+        ///     Maps the judgement window name to the texture path.
+        /// </summary>
+        /// <param name="name"></param>
+        /// <returns></returns>
+        private string GetJudgementWindowTexture(string name)
+        {
+            var suffix = "Custom";
+
+            if (name.Contains("Chill"))
+                suffix = "CHILL";
+            else if (name.Contains("Extreme"))
+                suffix = "EXT";
+            else if (name.Contains("Impossible"))
+                suffix = "IMP";
+            else if (name.Contains("Lenient"))
+                suffix = "LEN";
+            else if (name.Contains("Peaceful"))
+                suffix = "PEAC";
+            else if (name.Contains("Standard"))
+                suffix = "STD";
+            else if (name.Contains("Strict"))
+                suffix = "STR";
+            else if (name.Contains("Tough"))
+                suffix = "TOU";
+
+            return $@"Quaver.Resources/Textures/UI/Mods/JW-{suffix}.png";
+        }
+
+        private void OnJudgementWindowsChanged(object sender, BindableValueChangedEventArgs<JudgementWindows> args)
+        {
+            ModsTabButton?.ScheduleUpdate(() => ModsTabButton?.UpdateValueIcon(GetJudgementWindowTexture(args.Value.Name)));
+        }
+
+        private void OnModsChanged(object sender, ModsChangedEventArgs args)
+        {
+            ModsTabButton?.ScheduleUpdate(() => ModsTabButton?.UpdateModIcons(ModManager.CurrentModifiersList));
+        }
+
+
 
         /// <summary>
         ///     Creates <see cref="MapsetContainer"/>
         /// </summary>
         private void CreateMapsetContainer()
         {
+            // Calculate container Y and height for proper spacing
+            var containerY = FilterPanel.Y + FilterPanel.Height + 10;  // 10px gap from filter panel
+            var containerHeight = WindowManager.Height - containerY - Footer.Height - 10;  // 10px gap from footer
+
             MapsetContainer = new MapsetScrollContainer(SelectScreen.AvailableMapsets, SelectScreen.ActiveScrollContainer)
             {
                 Parent = Container,
                 Alignment = Alignment.TopRight,
-                Y = FilterPanel.Y + FilterPanel.Height - 4,
+                Y = containerY,
+                Height = containerHeight
             };
+
+            // Update scrollbar to match new container height
+            MapsetContainer.UpdateScrollbarHeight();
 
             MapsetContainer.X = MapsetContainer.Width + ScreenPaddingX;
         }
@@ -315,6 +508,7 @@ namespace Quaver.Shared.Screens.Selection
                 Parent = Container,
                 Alignment = Alignment.TopRight,
                 Y = MapsetContainer.Y,
+                Height = MapsetContainer.Height  // Same height as MapsetContainer
             };
 
             MapContainer.X = MapContainer.Width + ScreenPaddingX;
@@ -328,7 +522,8 @@ namespace Quaver.Shared.Screens.Selection
             {
                 Parent = Container,
                 Alignment = Alignment.TopRight,
-                Y = MapsetContainer.Y
+                Y = MapsetContainer.Y,
+                Height = MapsetContainer.Height  // Same height as MapsetContainer
             };
 
             PlaylistContainer.X = PlaylistContainer.Width + ScreenPaddingX;
@@ -347,33 +542,34 @@ namespace Quaver.Shared.Screens.Selection
 
             const int animTime = 400;
             const Easing easing = Easing.OutQuint;
-            var inactivePos = -LeaderboardContainer.Width - ScreenPaddingX;
+            var leftPadding = LeftPanelPaddingX;
+            var inactivePos = -LeaderboardContainer.Width - leftPadding;
 
             switch (e.Value)
             {
                 case SelectContainerPanel.Leaderboard:
-                    LeaderboardContainer.MoveToX(ScreenPaddingX, easing, animTime);
+                    LeaderboardContainer.MoveToX(leftPadding, easing, animTime);
                     MapPreviewContainer.MoveToX(inactivePos, easing, animTime);
                     ModifierSelector.MoveToX(inactivePos, easing, animTime);
-                    ProfileContainer.MoveToX(inactivePos, easing, animTime);
+
+                    LeaderboardContainer.FetchScores();
                     break;
                 case SelectContainerPanel.Modifiers:
                     LeaderboardContainer.MoveToX(inactivePos, easing, animTime);
                     MapPreviewContainer.MoveToX(inactivePos, easing, animTime);
-                    ModifierSelector.MoveToX(ScreenPaddingX, easing, animTime);
-                    ProfileContainer.MoveToX(inactivePos, easing, animTime);
+                    ModifierSelector.MoveToX(leftPadding, easing, animTime);
                     break;
                 case SelectContainerPanel.MapPreview:
                     LeaderboardContainer.MoveToX(inactivePos, easing, animTime);
                     ModifierSelector.MoveToX(inactivePos, easing, animTime);
-                    MapPreviewContainer.MoveToX(ScreenPaddingX, easing, animTime);
-                    ProfileContainer.MoveToX(inactivePos, easing, animTime);
-                    break;
-                case SelectContainerPanel.UserProfile:
-                    LeaderboardContainer.MoveToX(inactivePos, easing, animTime);
-                    ModifierSelector.MoveToX(inactivePos, easing, animTime);
-                    MapPreviewContainer.MoveToX(inactivePos, easing, animTime);
-                    ProfileContainer.MoveToX(ScreenPaddingX, easing, animTime);
+
+                    var version = SkinManager.Skin?.UserInterfaceVersion ?? 1.0f;
+                    var targetX = (float)leftPadding;
+
+                    if (version == 2.0f && TabsPanel != null)
+                        targetX = TabsPanel.X + (TabsPanel.Width - MapPreviewContainer.Width) / 2;
+
+                    MapPreviewContainer.MoveToX(targetX, easing, animTime);
                     break;
                 default:
                     throw new ArgumentOutOfRangeException();
@@ -418,7 +614,13 @@ namespace Quaver.Shared.Screens.Selection
             switch (e.Value)
             {
                 case SelectScrollContainerType.Mapsets:
-                    MapsetContainer.MoveToX(activePosition, easing, animTime);
+                    // Skip MapsetContainer animation if coming from Playlists - the pool was destroyed
+                    // and OnMapsetContainerInitialized will handle the animation after reinitialization.
+                    // This prevents duplicate/competing animations for a smoother transition.
+                    if (e.OldValue != SelectScrollContainerType.Playlists)
+                    {
+                        MapsetContainer.MoveToX(activePosition, easing, animTime);
+                    }
                     MapContainer.MoveToX(inactivePosition, easing, animTime);
                     PlaylistContainer.MoveToX(inactivePosition, easing, animTime);
                     break;
@@ -444,10 +646,16 @@ namespace Quaver.Shared.Screens.Selection
         /// </summary>
         private void ReorderContainerLayerDepth()
         {
-            ListHelper.Swap(Container.Children, Container.Children.IndexOf(PlaylistContainer), Container.Children.IndexOf(FilterPanel));
+            // Ensure FilterPanel is drawn after Leaderboard (and everything else usually)
+            // by re-adding it to the container (moves to end of list)
+            FilterPanel.Parent = Container;
 
+            // Ensure Header, Footer and Visualizer are topmost
             Header.Parent = Container;
             Footer.Parent = Container;
+            
+            if (Visualizer != null)
+                Visualizer.Parent = Container;
         }
 
         /// <summary>
@@ -463,15 +671,14 @@ namespace Quaver.Shared.Screens.Selection
             MapsetContainer.ClearAnimations();
             PlaylistContainer.ClearAnimations();
             MapPreviewContainer.ClearAnimations();
-            ProfileContainer.ClearAnimations();
 
             const Easing easing = Easing.OutQuint;
             const int time = 400;
 
-            LeaderboardContainer.MoveToX(-LeaderboardContainer.Width - ScreenPaddingX, easing, time);
-            ModifierSelector.MoveToX(-ModifierSelector.Width - ScreenPaddingX, easing, time);
-            MapPreviewContainer.MoveToX(-MapPreviewContainer.Width - ScreenPaddingX, easing, time);
-            ProfileContainer.MoveToX(-ProfileContainer.Width - ScreenPaddingX, easing, time);
+            var leftPadding = LeftPanelPaddingX;
+            LeaderboardContainer.MoveToX(-LeaderboardContainer.Width - leftPadding, easing, time);
+            ModifierSelector.MoveToX(-ModifierSelector.Width - leftPadding, easing, time);
+            MapPreviewContainer.MoveToX(-MapPreviewContainer.Width - leftPadding, easing, time);
 
             MapContainer.MoveToX(MapContainer.Width + ScreenPaddingX, easing, time);
             MapsetContainer.MoveToX(MapsetContainer.Width + ScreenPaddingX, easing, time);
@@ -507,7 +714,7 @@ namespace Quaver.Shared.Screens.Selection
                     if (SelectScreen.ActiveScrollContainer.Value == SelectScrollContainerType.Playlists)
                     {
                         SelectScreen.AvailableMapsets.Value = new List<Mapset>();
-                        MapsetContainer.DestroyPool();
+                        MapsetContainer.Schedule(() => MapsetContainer.DestroyPool());
                     }
 
                     SelectScreen.ActiveScrollContainer.Value = SelectScrollContainerType.Mapsets;
@@ -553,7 +760,7 @@ namespace Quaver.Shared.Screens.Selection
             switch (SelectScreen.ActiveScrollContainer.Value)
             {
                 case SelectScrollContainerType.Mapsets:
-                    PlaylistContainer.DestroyPool();
+                    PlaylistContainer.Schedule(() => PlaylistContainer.DestroyPool());
                     MapsetContainer.ClearAnimations();
                     MapsetContainer.MoveToX(MapsetContainer.Width + ScreenPaddingX, Easing.OutQuint, 450);
 
@@ -601,5 +808,143 @@ namespace Quaver.Shared.Screens.Selection
             MapContainer.MoveToX(MapContainer.Width + ScreenPaddingX, easing, time);
             MapsetContainer.MoveToX(MapsetContainer.Width + ScreenPaddingX, easing, time);
         }
-    }
-}
+        /// <summary>
+        ///     Handles the filter panel resizing logic
+        /// </summary>
+        /// <param name="targetPanelHeight"></param>
+        private void OnFilterPanelHeightChanged(float targetPanelHeight)
+        {
+            // Calculate new Y and Height for the containers
+            // V2: FilterPanel.Y + Height + 10px spacing
+            var containerY = FilterPanel.Y + targetPanelHeight + 10;
+
+            // Height = ScreenHeight - Y - Footer - 10px spacing
+            var containerHeight = WindowManager.Height - containerY - Footer.Height - 10;
+
+            // Animate MapsetContainer
+            if (MapsetContainer != null)
+            {
+                MapsetContainer.Animations.Clear();
+                MapsetContainer.Animations.Add(new Animation(AnimationProperty.Y, Easing.OutQuint, MapsetContainer.Y, containerY, 200));
+                MapsetContainer.Animations.Add(new Animation(AnimationProperty.Height, Easing.OutQuint, MapsetContainer.Height, containerHeight, 200));
+
+                // Force update scrollbar height immediately (it might animate better if synced in Update, but good enough)
+                // Actually, since we animate property, we can't easily sync explicitly in compiled code without loop.
+                // We'll trust Container Update loop or just set it at the end? 
+                // Since we can't hook into "OnComplete", we'll just set it.
+                // Wait, if I set it once, it won't animate.
+                // Scrollbar background (NineSlice) height should ideally animate.
+                // But ScrollbarBackground is protected in that class.
+            }
+
+            // Animate MapContainer
+            if (MapContainer != null)
+            {
+                MapContainer.Animations.Clear();
+                MapContainer.Animations.Add(new Animation(AnimationProperty.Y, Easing.OutQuint, MapContainer.Y, containerY, 200));
+                MapContainer.Animations.Add(new Animation(AnimationProperty.Height, Easing.OutQuint, MapContainer.Height, containerHeight, 200));
+            }
+
+            // Animate PlaylistContainer
+            if (PlaylistContainer != null)
+            {
+                PlaylistContainer.Animations.Clear();
+                PlaylistContainer.Animations.Add(new Animation(AnimationProperty.Y, Easing.OutQuint, PlaylistContainer.Y, containerY, 200));
+                PlaylistContainer.Animations.Add(new Animation(AnimationProperty.Height, Easing.OutQuint, PlaylistContainer.Height, containerHeight, 200));
+            }
+
+             // Animate MapPreviewContainer
+             var version = SkinManager.Skin?.UserInterfaceVersion ?? 1.0f;
+             if (version != 2.0f && MapPreviewWrapper != null)
+             {
+                 // MapPreviewWrapper should reach edges (no 10px gaps) to keep SeekBar full-height
+                 var previewY = FilterPanel.Y + targetPanelHeight;
+                 var previewHeight = WindowManager.Height - previewY - Footer.Height;
+
+                 MapPreviewWrapper.Animations.Clear();
+                 MapPreviewWrapper.Animations.Add(new Animation(AnimationProperty.Y, Easing.OutQuint, MapPreviewWrapper.Y, previewY, 200));
+                 MapPreviewWrapper.Animations.Add(new Animation(AnimationProperty.Height, Easing.OutQuint, MapPreviewWrapper.Height, previewHeight, 200));
+
+                 if (MapPreviewContainer != null)
+                 {
+                     MapPreviewContainer.Animations.Clear();
+                     MapPreviewContainer.Animations.Add(new Animation(AnimationProperty.Height, Easing.OutQuint, MapPreviewContainer.Height, previewHeight, 200));
+                 }
+             }
+        }
+
+
+         /// <summary>
+         ///     A container that clips children using Wobble's native SpriteBatch management.
+         /// </summary>
+         private class PreviewClippingContainer : Container
+         {
+             public SpriteBatchOptions Options { get; }
+
+             public PreviewClippingContainer()
+             {
+                 Options = new SpriteBatchOptions
+                 {
+                     SortMode = SpriteSortMode.Deferred,
+                     BlendState = BlendState.NonPremultiplied,
+                     RasterizerState = new RasterizerState { ScissorTestEnable = true },
+                 };
+             }
+
+
+
+             public override void Draw(GameTime gameTime)
+             {
+                 if (!Visible)
+                     return;
+
+                 // 1. End the current default batch.
+                 GameBase.Game.TryEndBatch();
+
+                 // 2. Start our scissored batch.
+                 Options.Begin();
+
+                 // 3. LIE to the children (Sprites).
+                 // If they see DefaultSpriteBatchInUse == true, they will draw into our scissored batch
+                 // instead of starting a new unclipped default one.
+                 var oldInUse = GameBase.DefaultSpriteBatchInUse;
+                 GameBase.DefaultSpriteBatchInUse = true;
+
+                 // 4. Calculate and set the ScissorRectangle.
+                 var widthScale = GameBase.Game.Graphics.PreferredBackBufferWidth / WindowManager.Width;
+                 var heightScale = GameBase.Game.Graphics.PreferredBackBufferHeight / WindowManager.Height;
+
+                 // Boundary calculation: 
+                 // Top: Max of (Container Start) and (Tabs Bottom 130 + 10px gap = 140).
+                 // This ensures it never draws over tabs.
+                 var topGlobal = Math.Max(ScreenRectangle.Y, 140);
+                 var bottomGlobal = ScreenRectangle.Y + ScreenRectangle.Height;
+
+                 var rect = new Rectangle
+                 {
+                     X = (int)(ScreenRectangle.X * widthScale),
+                     Y = (int)(topGlobal * heightScale),
+                     Width = (int)(ScreenRectangle.Width * widthScale),
+                     Height = (int)((bottomGlobal - topGlobal) * heightScale),
+                 };
+
+                 // Clamp to screen
+                 var viewport = GameBase.Game.GraphicsDevice.Viewport;
+                 var intersection = Rectangle.Intersect(rect, new Rectangle(0, 0, viewport.Width, viewport.Height));
+
+                 if (intersection.Width > 0 && intersection.Height > 0)
+                     GameBase.Game.GraphicsDevice.ScissorRectangle = intersection;
+
+                 // 5. Draw children (MapPreviewContainer -> LoadedGameplayScreen -> Playfield)
+                 base.Draw(gameTime);
+
+                 // 6. End our scissored batch and restore the engine state.
+                 GameBase.Game.TryEndBatch();
+                 GameBase.DefaultSpriteBatchInUse = oldInUse;
+
+                 if (oldInUse)
+                     GameBase.DefaultSpriteBatchOptions.Begin();
+             }
+         }
+     }
+ }

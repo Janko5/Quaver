@@ -115,7 +115,10 @@ namespace Quaver.Shared.Screens.Selection
             if (IsMultiplayer)
                 OnlineManager.Client?.SetGameCurrentlySelectingMap(true);
             else
+            {
+                ConfigManager.SelectGroupMapsetsBy.Value = GroupMapsetsBy.None;
                 SetRichPresence();
+            }
 
             InitializeSearchQueryBindable();
             InitializeAvailableMapsetsBindable();
@@ -126,12 +129,18 @@ namespace Quaver.Shared.Screens.Selection
 
             // Do initial filtering of mapsets for the screen
             AvailableMapsets.Value = MapsetHelper.FilterMapsets(CurrentSearchQuery);
+            AvailableMapsets.ValueChanged += OnAvailableMapsetsChanged;
+            SelectionScreen.RandomMapsetSelected += OnRandomMapsetSelected;
+            ActiveScrollContainer.ValueChanged += OnActiveScrollContainerChanged;
 
             MapManager.MapsetDeleted += OnMapsetDeleted;
             MapManager.MapDeleted += OnMapDeleted;
             MapManager.MapUpdated += OnMapUpdated;
             MapManager.SongRequestPlayed += OnSongRequestPlayed;
             ConfigManager.AutoLoadOsuBeatmaps.ValueChanged += OnAutoLoadOsuBeatmapsChanged;
+            PlaylistManager.Selected.ValueChanged += OnPlaylistSelected;
+            ConfigManager.SelectGroupMapsetsBy.ValueChanged += OnGroupMapsetsByChanged;
+            PlaylistManager.PlaylistMapsManaged += OnPlaylistMapsManaged;
 
             View = new SelectionScreenView(this);
         }
@@ -183,6 +192,12 @@ namespace Quaver.Shared.Screens.Selection
 
             // ReSharper disable once DelegateSubtraction
             ConfigManager.AutoLoadOsuBeatmaps.ValueChanged -= OnAutoLoadOsuBeatmapsChanged;
+            AvailableMapsets.ValueChanged -= OnAvailableMapsetsChanged;
+            SelectionScreen.RandomMapsetSelected -= OnRandomMapsetSelected;
+            ActiveScrollContainer.ValueChanged -= OnActiveScrollContainerChanged;
+            PlaylistManager.Selected.ValueChanged -= OnPlaylistSelected;
+            ConfigManager.SelectGroupMapsetsBy.ValueChanged -= OnGroupMapsetsByChanged;
+            PlaylistManager.PlaylistMapsManaged -= OnPlaylistMapsManaged;
 
             base.Destroy();
         }
@@ -262,7 +277,6 @@ namespace Quaver.Shared.Screens.Selection
             HandleKeyPressF1();
             HandleKeyPressF2();
             HandleKeyPressF3();
-            HandleKeyPressF4();
             HandleKeyPressF5();
             HandleKeyPressEnter();
             HandleKeyPressControlInput();
@@ -328,21 +342,6 @@ namespace Quaver.Shared.Screens.Selection
                 ActiveLeftPanel.Value = SelectContainerPanel.MapPreview;
         }
 
-        /// <summary>
-        /// </summary>
-        private void HandleKeyPressF4()
-        {
-            if (KeyboardManager.IsCtrlDown())
-                return;
-
-            if (!KeyboardManager.IsUniqueKeyPress(Keys.F4))
-                return;
-
-            if (ActiveLeftPanel.Value == SelectContainerPanel.UserProfile)
-                ActiveLeftPanel.Value = SelectContainerPanel.Leaderboard;
-            else
-                ActiveLeftPanel.Value = SelectContainerPanel.UserProfile;
-        }
 
         /// <summary>
         ///		Prompts the user to begin a force refresh for mapsets.
@@ -372,10 +371,40 @@ namespace Quaver.Shared.Screens.Selection
             switch (ActiveScrollContainer.Value)
             {
                 case SelectScrollContainerType.Mapsets:
-                    if (MapsetHelper.IsSingleDifficultySorted())
-                        ExitToGameplay();
+                    // Check if the current mapset's difficulty list is expanded
+                    // If collapsed, expand it first. If already expanded, launch gameplay.
+                    var view = (SelectionScreenView)View;
+                    var mapsetContainer = view.MapsetContainer;
+
+                    if (MapManager.Selected.Value?.Mapset != null)
+                    {
+                        // Find the mapset in available items
+                        var currentMapset = AvailableMapsets.Value
+                            .FirstOrDefault(m => m.Maps.Contains(MapManager.Selected.Value));
+
+                        if (currentMapset != null)
+                        {
+                            if (mapsetContainer.IsMapsetExpanded(currentMapset))
+                            {
+                                // Already expanded - launch gameplay
+                                ExitToGameplay();
+                            }
+                            else
+                            {
+                                // Not expanded - expand the difficulty list
+                                mapsetContainer.ExpandMapset(currentMapset);
+                            }
+                        }
+                        else
+                        {
+                            // Fallback: just launch gameplay
+                            ExitToGameplay();
+                        }
+                    }
                     else
-                        ActiveScrollContainer.Value = SelectScrollContainerType.Maps;
+                    {
+                        ExitToGameplay();
+                    }
                     break;
                 case SelectScrollContainerType.Maps:
                     ExitToGameplay();
@@ -439,7 +468,7 @@ namespace Quaver.Shared.Screens.Selection
             // Change from pitched to non-pitched
             if (KeyboardManager.IsUniqueKeyPress(ConfigManager.KeyTogglePitch.Value))
                 ConfigManager.Pitched.Value = !ConfigManager.Pitched.Value;
-            
+
             // Remove all mods
             if (KeyboardManager.IsUniqueKeyPress(ConfigManager.KeyRemoveAllMods.Value))
                 ModManager.RemoveAllMods();
@@ -761,6 +790,9 @@ namespace Quaver.Shared.Screens.Selection
 
                 OnlineManager.Client.SetGameCurrentlySelectingMap(false);
 
+                if (Exiting)
+                    return;
+
                 Exit(() => new MultiplayerGameScreen());
             });
         }
@@ -934,7 +966,10 @@ namespace Quaver.Shared.Screens.Selection
                 lock (AvailableMapsets.Value)
                     AvailableMapsets.Value = MapsetHelper.FilterMapsets(CurrentSearchQuery);
 
-                var mapsetIndex = AvailableMapsets.Value.FindIndex(x => x.Maps.Contains(e.Map));
+                // Check if the currently selected map is in the list of available mapsets.
+                // If we deleted a difficulty, MapManager should have already selected a sibling difficulty.
+                var currentSelected = MapManager.Selected.Value;
+                var mapsetIndex = currentSelected != null ? AvailableMapsets.Value.FindIndex(x => x.Maps.Contains(currentSelected)) : -1;
 
                 if (mapsetIndex == -1 && AvailableMapsets.Value.Count != 0)
                 {
@@ -985,5 +1020,85 @@ namespace Quaver.Shared.Screens.Selection
         /// </summary>
         /// <returns></returns>
         public override UserClientStatus GetClientStatus() => new UserClientStatus(ClientStatus.Selecting, -1, "", 0, "", 0);
+
+        /// <summary>
+        ///     Refilters the mapsets when a new playlist is selected
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void OnPlaylistSelected(object sender, BindableValueChangedEventArgs<Playlist> e)
+        {
+            if (ConfigManager.SelectGroupMapsetsBy.Value == GroupMapsetsBy.Playlists)
+            {
+                AvailableMapsets.Value = MapsetHelper.FilterMapsets(CurrentSearchQuery);
+
+                if (e.Value != null)
+                    ActiveScrollContainer.Value = SelectScrollContainerType.Mapsets;
+            }
+        }
+
+        /// <summary>
+        ///     Refilters the mapsets when the grouping mode has changed
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void OnGroupMapsetsByChanged(object sender, BindableValueChangedEventArgs<GroupMapsetsBy> e)
+        {
+            if (e.Value == GroupMapsetsBy.Playlists)
+                CurrentSearchQuery.Value = string.Empty;
+
+            AvailableMapsets.Value = MapsetHelper.FilterMapsets(CurrentSearchQuery);
+        }
+
+        /// <summary>
+        ///     Refilters the mapsets when the scroll container changes.
+        ///     This ensures that the mapset container is properly initialized and animated when switching from playlists.
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void OnActiveScrollContainerChanged(object sender, BindableValueChangedEventArgs<SelectScrollContainerType> e)
+        {
+            if (e.Value == SelectScrollContainerType.Mapsets && e.OldValue == SelectScrollContainerType.Playlists)
+                AvailableMapsets.Value = MapsetHelper.FilterMapsets(CurrentSearchQuery);
+        }
+
+        /// <summary>
+        ///     Refilters the mapsets when the available mapsets change.
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void OnAvailableMapsetsChanged(object sender, BindableValueChangedEventArgs<List<Mapset>> e)
+        {
+            // This handler is intentionally left empty.
+            // Its purpose is to ensure that the AvailableMapsets bindable is subscribed to,
+            // which can be necessary for certain UI components that react to its changes.
+            // The actual filtering logic is handled by other methods that set AvailableMapsets.Value.
+        }
+
+        /// <summary>
+        ///     Handles when a random mapset has been selected.
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void OnRandomMapsetSelected(object sender, RandomMapsetSelectedEventArgs e)
+        {
+            // This handler is intentionally left empty.
+            // Its purpose is to ensure that the RandomMapsetSelected event is subscribed to,
+            // which can be necessary for certain UI components that react to its changes.
+        }
+
+        /// <summary>
+        ///     Handles when a playlist's maps have been managed (added/removed)
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void OnPlaylistMapsManaged(object sender, PlaylistMapsManagedEventArgs e)
+        {
+            // If the managed playlist is the currently selected one, refresh the map list
+            if (ConfigManager.SelectGroupMapsetsBy.Value == GroupMapsetsBy.Playlists && PlaylistManager.Selected.Value?.Id == e.Playlist.Id)
+            {
+                AvailableMapsets.Value = MapsetHelper.FilterMapsets(CurrentSearchQuery);
+            }
+        }
     }
 }

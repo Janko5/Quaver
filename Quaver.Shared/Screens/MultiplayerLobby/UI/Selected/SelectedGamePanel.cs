@@ -87,8 +87,8 @@ namespace Quaver.Shared.Screens.MultiplayerLobby.UI.Selected
                 Parent = this,
                 Alignment = Alignment.TopLeft,
                 Y = Header.Y + Header.Height + 8,
-                Size = new ScalableVector2(Width,Height - Header.Height - 8),
-                Image = UserInterface.LeaderboardScoresPanel,
+                Size = new ScalableVector2(Width, Height - Header.Height - 8),
+                Image = UserInterface.LeaderboardPanel,
             };
 
             Container = new SelectedGamePanelContainer(SelectedGame, IsMultiplayer,

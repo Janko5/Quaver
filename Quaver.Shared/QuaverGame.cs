@@ -65,6 +65,7 @@ using Quaver.Shared.Screens.Tests.Border;
 using Quaver.Shared.Screens.Tests.Chat;
 using Quaver.Shared.Screens.Tests.CheckboxContainers;
 using Quaver.Shared.Screens.Tests.CreatePlaylists;
+
 using Quaver.Shared.Screens.Tests.DifficultyGraph;
 using Quaver.Shared.Screens.Tests.DrawableLeaderboardScores;
 using Quaver.Shared.Screens.Tests.DrawableMaps;
@@ -89,7 +90,7 @@ using Quaver.Shared.Screens.Tests.Notifications;
 using Quaver.Shared.Screens.Tests.OnlineHubDownloads;
 using Quaver.Shared.Screens.Tests.OnlineHubs;
 using Quaver.Shared.Screens.Tests.Options;
-using Quaver.Shared.Screens.Tests.Profiles;
+
 using Quaver.Shared.Screens.Tests.ReplayControllers;
 using Quaver.Shared.Screens.Tests.Results;
 using Quaver.Shared.Screens.Tests.ResultsMulti;
@@ -113,6 +114,7 @@ using Wobble.Graphics.UI.Debugging;
 using Wobble.Graphics.UI.Dialogs;
 using Wobble.Input;
 using Wobble.IO;
+using Wobble.Graphics.UI.Buttons;
 using Wobble.Logging;
 using Wobble.Platform;
 using Wobble.Window;
@@ -192,6 +194,16 @@ namespace Quaver.Shared
         private bool WindowActiveInPreviousFrame { get; set; }
 
         /// <summary>
+        ///     Last time the window was resized. Used for debouncing.
+        /// </summary>
+        private DateTime LastResizeTime { get; set; } = DateTime.MinValue;
+
+        /// <summary>
+        ///     If there is a pending resize event to be processed.
+        /// </summary>
+        private bool ResizePending { get; set; }
+
+        /// <summary>
         ///     Sometimes we'd like to perform actions on the first update, such as
         ///     creating <see cref="OnlineHub"/>
         /// </summary>
@@ -214,7 +226,7 @@ namespace Quaver.Shared
             {"TournamentOverlay", typeof(TestTournamentOverlayScreen)},
             {"Editor", typeof(TestEditorScreen)},
             {"LuaImGui", typeof(TestLuaScriptingScreen)},
-            {"LocalProfileContainer", typeof(TestUserProfileContainerScreen)},
+
             {"DifficultyGraph", typeof(TestDifficultyGraphScreen)},
             {"DownloadingScreen", typeof(DownloadingScreen)},
             {"Dropdown", typeof(DropdownTestScreen)},
@@ -226,6 +238,7 @@ namespace Quaver.Shared
             {"SelectJukebox", typeof(TestSelectJukeboxScreen)},
             {"DrawableMapset", typeof(TestMapsetScreen)},
             {"DrawableMapset (Multiple)", typeof(TestMapsetsMultipleScreen)},
+
             {"MapsetScrollContainer", typeof(TestScreenMapsetScrollContainer)},
             {"DrawableMap", typeof(TestDrawableMapScreen)},
             {"MapScrollContainer", typeof(TestScreenMapScrollContainer)},
@@ -371,7 +384,6 @@ namespace Quaver.Shared
             HandleOnlineHubInput();
 
             NotificationManager.Update(gameTime);
-            VolumeController?.Update(gameTime);
             Transitioner.Update(gameTime);
 
 #if VISUAL_TESTS
@@ -383,6 +395,30 @@ namespace Quaver.Shared
             UpdateFpsCounterPosition();
 
             Window.AllowUserResizing = QuaverWindowManager.CanChangeResolutionOnScene;
+
+            if (ResizePending && (DateTime.Now - LastResizeTime).TotalMilliseconds > 200)
+            {
+                ResizePending = false;
+                ChangeResolution();
+            }
+
+            // Fail-safe: If the resolution change or screen transition gets stuck, 
+            // ensure that the UI is eventually clickable again after a timeout.
+            if (!ResizePending && (DateTime.Now - LastResizeTime).TotalMilliseconds > 1000)
+            {
+                if (Transitioner.Blackness == null || Transitioner.Blackness.Alpha < 0.01f)
+                {
+                    if (!DialogManager.IsAnyActive)
+                        Button.IsGloballyClickable = true;
+                }
+            }
+        }
+
+        /// <inheritdoc />
+        protected override void PreScreenManagerUpdate(GameTime gameTime)
+        {
+            VolumeController?.Update(gameTime);
+            base.PreScreenManagerUpdate(gameTime);
         }
 
         /// <inheritdoc />
@@ -450,13 +486,13 @@ namespace Quaver.Shared
 
             ConfigManager.FpsLimiterType.ValueChanged += (sender, e) => InitializeFpsLimiting();
             ConfigManager.CustomFpsLimit.ValueChanged += (sender, e) => InitializeFpsLimiting();
-            
+
             ConfigManager.WindowFullScreen.ValueChanged += (sender, e) =>
             {
                 if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
                 {
                     NotificationManager.Show(NotificationLevel.Info, "Full screen is not supported on macOS. Use the borderless window mode instead.");
-                    
+
                     ConfigManager.WindowFullScreen.ChangeWithoutTrigger(false);
                 }
                 else
@@ -464,7 +500,7 @@ namespace Quaver.Shared
                     Graphics.IsFullScreen = e.Value;
                 }
             };
-            
+
             ConfigManager.WindowBorderless.ValueChanged += (sender, e) => Window.IsBorderless = e.Value;
             ConfigManager.SelectedGameMode.ValueChanged += (sender, args) =>
             {
@@ -942,6 +978,12 @@ namespace Quaver.Shared
                     break;
             }
 
+            // Clear Dialogs during resolution change to prevent UI state mess.
+            DialogManager.DismissAll();
+
+            Transitioner.Initialize();
+            Transitioner.Blackness.Alpha = 1f;
+
             VolumeController?.Destroy();
             VolumeController = new VolumeControl();
         }
@@ -951,7 +993,8 @@ namespace Quaver.Shared
             ConfigManager.WindowWidth.Value = Window.ClientBounds.Width;
             ConfigManager.WindowHeight.Value = Window.ClientBounds.Height;
 
-            ChangeResolution();
+            LastResizeTime = DateTime.Now;
+            ResizePending = true;
         }
 
         public void SetProcessPriority()

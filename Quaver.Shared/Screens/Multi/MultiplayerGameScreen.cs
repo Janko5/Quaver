@@ -242,8 +242,6 @@ namespace Quaver.Shared.Screens.Multi
             if (KeyboardManager.IsUniqueKeyPress(Keys.F3))
                 HandleKeyPressF3();
 
-            if (KeyboardManager.IsUniqueKeyPress(Keys.F4))
-                HandleKeyPressF4();
 
             if (KeyboardManager.IsUniqueKeyPress(Keys.Escape))
             {
@@ -355,15 +353,6 @@ namespace Quaver.Shared.Screens.Multi
                 ActiveLeftPanel.Value = SelectContainerPanel.MatchSettings;
         }
 
-        /// <summary>
-        /// </summary>
-        private void HandleKeyPressF4()
-        {
-            if (ActiveLeftPanel.Value != SelectContainerPanel.UserProfile)
-                ActiveLeftPanel.Value = SelectContainerPanel.UserProfile;
-            else
-                ActiveLeftPanel.Value = SelectContainerPanel.MatchSettings;
-        }
 
         /// <summary>
         /// </summary>

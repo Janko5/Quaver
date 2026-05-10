@@ -12,12 +12,12 @@ namespace Quaver.Shared.Screens.Selection.UI.Borders.Footer
     public class IconTextButtonPlay : IconTextButton
     {
         public IconTextButtonPlay(SelectionScreen screen) : base(FontAwesome.Get(FontAwesomeIcon.fa_play_button),
-            FontManager.GetWobbleFont(Fonts.LatoBlack),"Play", (sender, args) =>
+            FontManager.GetWobbleFont(Fonts.InterBold), "Play", (sender, args) =>
             {
                 switch (screen.ActiveScrollContainer.Value)
                 {
                     case SelectScrollContainerType.Mapsets:
-                        screen.ActiveScrollContainer.Value = SelectScrollContainerType.Maps;
+                        screen.ExitToGameplay();
                         break;
                     case SelectScrollContainerType.Maps:
                         screen.ExitToGameplay();

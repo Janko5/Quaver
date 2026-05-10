@@ -5,7 +5,6 @@ namespace Quaver.Shared.Screens.Selection.UI
         Leaderboard,
         Modifiers,
         MatchSettings,
-        MapPreview,
-        UserProfile
+        MapPreview
     }
 }
