@@ -31,6 +31,7 @@ using Wobble.Audio.Samples;
 using Wobble.Graphics.Sprites;
 using Wobble.Graphics.UI.Form;
 using Wobble.Logging;
+using CursorDrawable = Wobble.Graphics.UI.Cursor;
 
 namespace Quaver.Shared.Skinning
 {
@@ -138,6 +139,11 @@ namespace Quaver.Shared.Skinning
         ///     Whether the cursor should be centered.
         /// </summary>
         internal bool CenterCursor { get; private set; }
+
+        /// <summary>
+        ///     The cursor scale multiplier.
+        /// </summary>
+        internal float ScaleCursor { get; private set; } = 1.0f;
 
         /// <summary>
         ///     Whether the skin uses its own backgrounds.
@@ -576,6 +582,7 @@ namespace Quaver.Shared.Skinning
             // Change cursor image.
             GameBase.Game.GlobalUserInterface.Cursor.Image = Cursor;
             GameBase.Game.GlobalUserInterface.Cursor.Center = CenterCursor;
+            GameBase.Game.GlobalUserInterface.Cursor.SizeScale = ScaleCursor;
 
             totalSW.Stop();
 
@@ -614,6 +621,8 @@ namespace Quaver.Shared.Skinning
                 Author = ConfigHelper.ReadString(Author, Config["General"]["Author"]);
                 Version = ConfigHelper.ReadString(Version, Config["General"]["Version"]);
                 CenterCursor = ConfigHelper.ReadBool(false, Config["General"]["CenterCursor"]);
+                ScaleCursor = ConfigHelper.ReadFloat(1.0f, Config["General"]["ScaleCursor"]);
+                ScaleCursor = Microsoft.Xna.Framework.MathHelper.Clamp(ScaleCursor, CursorDrawable.MinimumSizeScale, CursorDrawable.MaximumSizeScale);
                 UseSkinBackgrounds = ConfigHelper.ReadBool(false, Config["General"]["UseSkinBackgrounds"]);
                 UserInterfaceVersion = ConfigHelper.ReadFloat(1.0f, Config["General"]["UserInterfaceVersion"]);
 

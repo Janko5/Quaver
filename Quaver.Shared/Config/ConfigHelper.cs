@@ -7,6 +7,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using Microsoft.Xna.Framework;
@@ -62,7 +63,7 @@ namespace Quaver.Shared.Config
         /// <param name="newVal"></param>
         /// <returns></returns>
         internal static float ReadFloat(float defaultVal, string newVal) =>
-            float.TryParse(newVal, out var newOne) ? newOne : defaultVal;
+            float.TryParse(newVal, NumberStyles.Float, CultureInfo.InvariantCulture, out var newOne) ? newOne : defaultVal;
 
         /// <summary>
         ///     Responsible for reading boolean values from the config file.
